@@ -1,0 +1,12 @@
+{
+  "display_name": "ST Diagnostic Helper v0.4 Clean",
+  "loading_order": 10000,
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "duccuongvu560",
+  "version": "0.4.0-clean",
+  "homePage": "https://example.invalid/st-diagnostic-helper-v04-clean",
+  "auto_update": false,
+  "minimum_client_version": "1.18.0"
+}

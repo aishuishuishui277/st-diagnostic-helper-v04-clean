@@ -1,0 +1,132 @@
+#stdh4c-root {
+    position: fixed;
+    left: 12px;
+    top: 72px;
+    z-index: 2147483645;
+    font-size: 13px;
+    color: #e8e8e8;
+}
+
+#stdh4c-toggle {
+    border: 2px solid #3aa7ff;
+    background: #050505;
+    color: #3aa7ff;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 700;
+    box-shadow: 0 0 18px rgba(58,167,255,.35);
+    touch-action: none;
+    user-select: none;
+}
+
+#stdh4c-panel {
+    display: none;
+    margin-top: 8px;
+    width: min(380px, calc(100vw - 20px));
+    max-height: min(590px, calc(100vh - 96px));
+    overflow: auto;
+    background: rgba(10,10,10,.96);
+    border: 2px solid #3aa7ff;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.45);
+}
+
+.stdh4c-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+#stdh4c-close {
+    background: transparent;
+    color: #fff;
+    border: 0;
+    font-size: 22px;
+}
+
+.stdh4c-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,.22);
+}
+
+.stdh4c-title {
+    font-weight: 700;
+    color: #3aa7ff;
+    margin-bottom: 6px;
+}
+
+.stdh4c-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px dashed rgba(255,255,255,.25);
+    padding: 4px 0;
+}
+
+.stdh4c-key {
+    opacity: .72;
+    flex: 0 0 auto;
+}
+
+.stdh4c-val {
+    text-align: right;
+    word-break: break-all;
+}
+
+.stdh4c-box {
+    margin: 6px 0;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(0,0,0,.35);
+    line-height: 1.45;
+}
+
+.stdh4c-good {
+    border: 1px solid rgba(58,167,255,.55);
+    background: rgba(58,167,255,.10);
+}
+
+.stdh4c-warn {
+    border: 1px solid rgba(255,193,7,.55);
+    background: rgba(255,193,7,.12);
+}
+
+.stdh4c-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.stdh4c-actions button {
+    border: 1px solid #555;
+    background: #222;
+    color: #eee;
+    border-radius: 8px;
+    padding: 8px 4px;
+}
+
+.stdh4c-note {
+    font-size: 12px;
+    opacity: .72;
+    line-height: 1.4;
+}
+
+.stdh4c-pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 165px;
+    overflow: auto;
+    background: rgba(0,0,0,.45);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+#stdh4c-root.stdh4c-dragging {
+    opacity: .88;
+}
