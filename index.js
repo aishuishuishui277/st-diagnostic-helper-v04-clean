@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.4.0-clean';
+    const VERSION = '0.4.1';
     const POS_KEY = 'stdh4c.position.v1';
     const LOG_PREFIX = '[STDH4C]';
 
@@ -799,7 +799,73 @@
         };
     }
 
+
+    // STDH4C_STUCK_FIX_V041
+    function parseTimeMs(value) {
+        const t = Date.parse(value || '');
+        return Number.isFinite(t) ? t : 0;
+    }
+
+    function currentGenerationAgeMs() {
+        if (!state.currentGeneration) return 0;
+        const start = parseTimeMs(state.currentGeneration.startedAt);
+        return start ? Date.now() - start : 0;
+    }
+
+    function currentLooksOrphan() {
+        const cur = state.currentGeneration;
+        const last = state.lastGeneration;
+
+        if (!cur) return false;
+
+        const age = currentGenerationAgeMs();
+        const noSignal =
+            !cur.firstStreamAt &&
+            !cur.messageReceived &&
+            (cur.streamTokens || 0) === 0;
+
+        if (!noSignal) return false;
+
+        const curStart = parseTimeMs(cur.startedAt);
+        const lastEnd = parseTimeMs(last?.endedAt);
+
+        const afterCompletedLast =
+            Boolean(lastEnd) &&
+            Boolean(curStart) &&
+            curStart >= lastEnd - 1000;
+
+        const noMessageSent =
+            !cur.messageSentSeen &&
+            cur.triggerType !== 'user message';
+
+        if (afterCompletedLast && age > 15000) return true;
+        if (noMessageSent && age > 45000) return true;
+
+        return false;
+    }
+
+    function sanitizeGenerationState(source) {
+        if (!state.currentGeneration) return false;
+
+        if (currentLooksOrphan()) {
+            const orphanId = state.currentGeneration.id || null;
+            state.currentGeneration = null;
+
+            addEvent(
+                'ORPHAN_GENERATION_DROPPED',
+                source || 'watchdog',
+                orphanId
+            );
+
+            return true;
+        }
+
+        return false;
+    }
+
+
     function generationSummary() {
+        sanitizeGenerationState('summary');
         const cur = state.currentGeneration;
         const last = state.lastGeneration;
 
@@ -828,6 +894,7 @@
     }
 
     function riskText() {
+        sanitizeGenerationState('risk');
         const health = linkHealth();
 
         if (health.status === 'Generation HTTP Error') return health.reason;
@@ -964,6 +1031,7 @@
     }
 
     function buildReport(communityMode) {
+        sanitizeGenerationState('report');
         const snap = getSnapshot();
         const health = linkHealth();
         const last = state.lastGeneration;
@@ -1214,6 +1282,7 @@
     }
 
     function render() {
+        sanitizeGenerationState('render');
         const healthEl = document.getElementById('stdh4c-health');
         if (!healthEl) return;
 
@@ -1425,6 +1494,7 @@
         }, 800);
 
         setInterval(() => {
+            sanitizeGenerationState('watchdog');
             mountUI();
             render();
         }, 1200);

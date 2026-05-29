@@ -5,7 +5,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "duccuongvu560",
-  "version": "0.4.0-clean",
+  "version": "0.4.1",
   "homePage": "https://example.invalid/st-diagnostic-helper-v04-clean",
   "auto_update": false,
   "minimum_client_version": "1.18.0"
