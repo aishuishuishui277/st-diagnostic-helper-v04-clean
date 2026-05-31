@@ -1,266 +1,69 @@
+# ST Diagnostic Helper v0.4 Clean
 
-ST Diagnostic Helper v0.4.2
+SillyTavern 本地诊断插件，用于社区排错报告生成。
 
-SillyTavern 本地生成链路诊断插件。
+## 功能
 
-A lightweight diagnostic helper for SillyTavern generation troubleshooting.
+- 生成链路诊断
+- 手动停止识别
+- 首 chunk 延迟统计
+- HTTP 错误分类
+- 后台扩展更新错误降噪
+- 社区版脱敏报告
+- Prompt Token Lens / Prompt Breakdown Lens
 
----
+## 隐私
 
-项目简介 | Overview
+插件不记录聊天正文、prompt 正文、API key、headers、request body、response body、query string。
 
-ST Diagnostic Helper 用于帮助用户分析生成链路状态、流式响应情况、手动停止行为以及常见 HTTP 错误。
+## 注意
 
-本插件不会自动修复问题，也不会修改模型配置。
+Prompt Token Lens 只读取 SillyTavern 可访问的内部统计信息，不保证等于提示词查看器顶部总 token。
+如果显示 unknown，请先完成一次正常生成后再刷新诊断。
+不要和旧版诊断插件同时启用。
+## 提示词数量诊断 / Prompt Token Lens
 
-它的目标是将：
+本插件提供一个轻量级的提示词结构诊断功能，用于辅助判断当前会话的上下文压力来源。
 
-"不能生成"
-"卡住了"
-"回复不完整"
+它会尽量读取 SillyTavern 内部可访问的 Prompt Itemization / 提示词结构统计，并在诊断面板和社区报告中显示：
 
-转换为可读、可共享、可排查的诊断报告。
+- Internal Itemized Total Tokens：插件读取到的内部结构化 token 总量
+- Chat History Tokens：聊天历史占用
+- WorldInfo Tokens：世界书 / 外部上下文占用
+- System / Preset Tokens：系统提示词 / 预设占用
+- Character Definition Tokens：角色定义占用
+- Example Messages Tokens：示例消息占用
+- Anchor / Injection Tokens：锚点 / 注入项参考值
+- Last User Message Tokens：最近用户消息占用
+- Last Assistant Message Tokens：最近助手回复占用
 
-ST Diagnostic Helper helps users analyze generation status, streaming behavior, manual stops, and common HTTP errors.
+### 注意
 
-It does not automatically fix problems.
+Prompt Token Lens 不是 SillyTavern 官方提示词查看器的替代品。
 
-Its purpose is to turn vague issues into structured diagnostic reports.
+它的定位是“排错辅助”和“结构拆分”，用于快速判断：
 
----
+- 是聊天历史太长
+- 还是世界书占用过高
+- 还是预设 / 系统提示词较重
+- 还是最近一轮回复过长
 
-功能说明 | Features
+插件不会记录或导出 prompt 正文，只显示 token / 字符数量等统计信息。
 
-1. 生成链路诊断
+如果显示 `unknown` 或 `(not available)`，通常表示当前页面还没有生成可读取的 Prompt Itemization 数据。建议先完成一次正常生成，再刷新诊断面板或重新复制报告。
 
-Generation Chain Diagnostics
+### 隐私说明
 
-记录生成开始、首 chunk、回复接收、生成结束等关键事件。
-
-Tracks generation start, first chunk arrival, message reception, and generation completion.
-
----
-
-2. 手动停止识别
-
-Manual Stop Detection
-
-能够识别用户主动点击停止按钮。
-
-Can detect when the user manually stops generation.
-
-避免把用户主动停止误判为模型故障。
-
-Prevents manual interruptions from being mistaken for model failures.
-
----
-
-3. 首 Chunk 延迟统计
-
-First Chunk Latency
-
-记录从发送请求到收到首个流式 chunk 的耗时。
-
-Measures the delay between request submission and the first streamed chunk.
-
-用于分析：
-
-- 网络延迟
-- 上游响应速度
-- 模型首包速度
-
-Useful for evaluating:
-
-- Network latency
-- Backend responsiveness
-- Model first-token speed
-
----
-
-4. 流式 Chunk 统计
-
-Stream Chunk Counter
-
-统计本次生成期间捕获到的 chunk 数量。
-
-Counts observed streamed chunks during generation.
-
-用于判断：
-
-- 是否真正流式
-- 是否假流式
-- 是否存在中断
-
-Useful for identifying:
-
-- True streaming
-- Simulated streaming
-- Interrupted streams
-
----
-
-5. HTTP 错误分类
-
-HTTP Error Classification
-
-仅记录：
-
-- 状态码
-- 请求方法
-- 安全路径
-- 耗时
-
-Records only:
-
-- Status code
-- HTTP method
-- Safe path
-- Duration
-
-不会记录：
-
-- Prompt
-- Body
-- Headers
-- API Key
-- Query String
-
-Does NOT record:
-
-- Prompt
-- Body
-- Headers
-- API Keys
-- Query Strings
-
----
-
-6. 常见错误解释
-
-Built-in Error Explanations
-
-支持解释：
-
-- NETWORK_ERROR
-- 403 Forbidden
-- 429 Too Many Requests
-- 500 Internal Error
-- 502 Bad Gateway
-- 503 Service Unavailable
-- 504 Gateway Timeout
-- 524 Cloudflare Timeout
-
-Provides human-readable explanations and troubleshooting suggestions.
-
----
-
-7. 后台扩展错误降噪
-
-Background Extension Error Filtering
-
-自动区分：
-
-- 生成相关错误
-- 后台扩展错误
-
-Automatically separates:
-
-- Generation-related failures
-- Background extension failures
-
-例如：
-
-/api/extensions/version
-
-不会被误判为模型生成失败。
-
-Background extension update checks will not be treated as generation failures.
-
----
-
-8. 社区版报告
-
-Community Report
-
-自动隐藏：
-
-- Preset
-- Character
-- Chat ID
-
-Generates privacy-safe reports suitable for sharing with communities.
-
----
-
-9. 本地完整报告
-
-Full Local Report
-
-保留完整本地信息。
-
-Shows full local diagnostic information for personal troubleshooting.
-
----
-
-隐私说明 | Privacy
-
-本插件不会记录：
+Prompt Token Lens 不记录：
 
 - 聊天正文
-- Prompt
-- API Key
-- Headers
-- Body
-- Query String
+- prompt 正文
+- 世界书正文
+- 角色卡正文
+- API key
+- headers
+- request body
+- response body
+- query string
 
-This plugin does NOT record:
-
-- Chat contents
-- Prompts
-- API keys
-- Headers
-- Request bodies
-- Query strings
-
----
-
-适用场景 | Intended Use
-
-适用于：
-
-- 公益站排错
-- API 调试
-- 反代排错
-- 流式响应测试
-- 社区问题反馈
-
-Suitable for:
-
-- API troubleshooting
-- Reverse proxy diagnostics
-- Streaming analysis
-- Community bug reports
-
----
-
-不适用场景 | Not Intended For
-
-不适用于：
-
-- 自动修复问题
-- 性能压测
-- Prompt 调试
-- 模型质量评测
-
-Not intended for:
-
-- Automatic fixes
-- Benchmarking
-- Prompt debugging
-- Model evaluation
-
----
-
-License
-
-MIT License
+它只输出 token 数量和结构分类。
