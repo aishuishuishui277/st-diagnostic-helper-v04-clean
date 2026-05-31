@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.4.1';
+    const VERSION = '0.4.2';
     const POS_KEY = 'stdh4c.position.v1';
     const LOG_PREFIX = '[STDH4C]';
 
@@ -537,6 +537,10 @@
         return '未分类';
     }
 
+    function joinDiagnosis(title, meaning, likelyCause, action) {
+        return `${title}｜含义：${meaning}｜常见原因：${likelyCause}｜建议：${action}`;
+    }
+
     function explainHttp(item) {
         const status = item.status;
         const category = item.category || classifyHttp(item);
@@ -544,25 +548,166 @@
 
         if (category === 'background') {
             if (path.startsWith('/api/extensions/version')) {
-                return '后台扩展版本检查失败，常见原因是 GitHub 访问失败、扩展仓库不可达或网络/TLS 中断；通常不代表本次模型生成失败。';
+                return joinDiagnosis(
+                    '后台扩展版本检查失败',
+                    'SillyTavern 正在检查扩展版本，但该后台请求失败。',
+                    'GitHub 访问失败、扩展仓库不可达、网络/TLS 中断、代理不稳定。',
+                    '若生成本身正常，可忽略；需要更新插件时再检查 GitHub 网络或稍后重试。'
+                );
             }
 
-            return '后台接口错误，可能与扩展、设置、资源或本地服务有关；不一定影响本次模型生成。';
+            return joinDiagnosis(
+                '后台接口错误',
+                '错误来自设置、扩展、资源或本地后台接口，不一定属于模型生成链路。',
+                '扩展刷新、资源加载、设置保存、本地服务状态异常。',
+                '先看生成是否成功；若只影响后台功能，优先检查相关扩展或本地服务。'
+            );
         }
 
         if (category === 'test') {
             return '插件测试请求，可忽略。';
         }
 
-        if (status === 400) return '生成接口 400：请求参数、模型名、预设或接口格式可能不兼容。';
-        if (status === 401) return '生成接口 401：鉴权失败，优先检查 API key、secret 或登录状态。';
-        if (status === 403) return '生成接口 403：权限或策略拒绝，可能与地区、模型权限、账号状态、公益站/第三方平台规则有关。';
-        if (status === 404) return '生成接口 404：请求路径、接口地址或模型路由可能不存在。';
-        if (status === 429) return '生成接口 429：频率限制、额度不足、并发过高、公益站限流或第三方平台限流。';
-        if (status === 'NETWORK_ERROR') return '生成接口网络错误：可能是网络断开、CORS、连接重置或后端不可达。';
+        if (status === 'NETWORK_ERROR') {
+            return joinDiagnosis(
+                'NETWORK_ERROR',
+                '浏览器 fetch 没拿到有效 HTTP 响应。',
+                '网络断开、连接重置、CORS、本地后端不可达、代理链路中断、TLS/证书问题。',
+                '先检查节点/代理、SillyTavern 后端是否还在运行、接口地址是否可达；不要直接归因于模型。'
+            );
+        }
+
+        const table = {
+            400: [
+                '400 Bad Request',
+                '请求格式错误，服务器无法按当前参数处理。',
+                '请求参数、模型名、预设格式、消息格式、反代兼容层不匹配。',
+                '检查模型名、API 格式、预设、上下文长度和请求端兼容性。'
+            ],
+            401: [
+                '401 Unauthorized',
+                '鉴权失败或缺少有效认证。',
+                'API key 错误、secret 失效、登录状态失效、鉴权头没有被后端接受。',
+                '检查 API key / secret / 登录状态；不要公开完整密钥。'
+            ],
+            403: [
+                '403 Forbidden',
+                '服务器理解请求，但拒绝处理。',
+                '模型权限不足、账号/地区/IP 被策略拒绝、公益站或第三方平台规则限制、请求端不合规。',
+                '检查模型权限、账号状态、服务商规则和请求来源；不要盲目高频重试。'
+            ],
+            404: [
+                '404 Not Found',
+                '请求路径、模型路由或资源不存在。',
+                '接口地址写错、模型名不存在、反代路由不存在、后端路径不匹配。',
+                '检查 base URL、模型名、endpoint 路由和反代配置。'
+            ],
+            408: [
+                '408 Request Timeout',
+                '服务器等待请求超时。',
+                '网络慢、请求发送不完整、代理链路卡住、移动网络波动。',
+                '检查网络稳定性，降低上下文/附件体积，必要时重试。'
+            ],
+            409: [
+                '409 Conflict',
+                '请求与当前服务状态冲突。',
+                '并发请求、会话状态冲突、后端任务还未完成、重复提交。',
+                '等当前任务结束后再试，避免多开或连续点生成。'
+            ],
+            413: [
+                '413 Payload Too Large',
+                '请求体过大。',
+                '上下文过长、图片/附件过大、世界书/预设堆叠过多、反代限制较小。',
+                '降低上下文长度、减少附件、压缩图片、精简世界书或预设。'
+            ],
+            422: [
+                '422 Unprocessable Content',
+                '请求格式能解析，但语义或参数不被接受。',
+                '参数组合非法、模型不支持某些字段、工具/函数调用格式不兼容。',
+                '检查预设参数、工具调用、temperature/top_p 等字段兼容性。'
+            ],
+            429: [
+                '429 Too Many Requests',
+                '请求过多，被服务端限流。',
+                'RPM/TPM 超限、并发过高、公益站额度限制、IP/账号频率限制、重复重试太快。',
+                '降低并发和重试频率，等待配额恢复；公益站场景先看额度和规则。'
+            ],
+            500: [
+                '500 Internal Server Error',
+                '服务端内部错误。',
+                '上游模型服务、反代后端、兼容层或本地服务内部异常。',
+                '保留脱敏报告给服务端维护者；若偶发可稍后重试。'
+            ],
+            502: [
+                '502 Bad Gateway',
+                '网关或代理从上游收到无效响应。',
+                '反代到上游失败、上游返回异常、网关/兼容层处理失败。',
+                '检查反代日志、上游可用性、节点链路；通常不是前端 UI 问题。'
+            ],
+            503: [
+                '503 Service Unavailable',
+                '服务暂时不可用。',
+                '服务维护、后端过载、队列爆满、公益站容量不足、上游临时不可用。',
+                '稍后再试，降低并发；公益站场景优先查看公告或状态页。'
+            ],
+            504: [
+                '504 Gateway Timeout',
+                '网关或代理等待上游响应超时。',
+                '长文本生成过慢、上游卡住、反代等待超时、代理链路慢。',
+                '减少上下文长度，换较快模型/线路；若频繁出现需检查反代超时设置。'
+            ],
+            520: [
+                '520 Cloudflare Unknown Error',
+                'Cloudflare 收到源站空响应、未知响应或异常响应。',
+                '源站程序异常、反代返回非标准响应、源站连接被中断。',
+                '检查源站/反代日志；用户侧可尝试换节点或稍后重试。'
+            ],
+            521: [
+                '521 Cloudflare Web Server Down',
+                'Cloudflare 连接源站被拒绝。',
+                '源站服务离线、防火墙阻止 Cloudflare、源站端口未监听。',
+                '维护者应检查源站服务和防火墙；普通用户只能反馈给站点方。'
+            ],
+            522: [
+                '522 Cloudflare Connection Timed Out',
+                'Cloudflare 连接源站超时。',
+                '源站网络不可达、防火墙丢包、服务器压力大、路由问题。',
+                '检查源站连通性、防火墙和服务器压力；用户侧可稍后重试。'
+            ],
+            523: [
+                '523 Cloudflare Origin Is Unreachable',
+                'Cloudflare 无法到达源站。',
+                'DNS 指向错误、源站 IP 不可达、路由或网络故障。',
+                '维护者检查 DNS/源站 IP/路由；用户侧可反馈给站点方。'
+            ],
+            524: [
+                '524 Cloudflare Timeout',
+                'Cloudflare 已连接源站，但源站在超时时间内没有返回 HTTP 响应。',
+                '上游生成太慢、长文本请求过重、反代后端卡死、源站压力大。',
+                '减少上下文长度，换轻量模型；维护者应检查源站耗时、队列和超时设置。'
+            ]
+        };
+
+        if (table[status]) {
+            return joinDiagnosis(...table[status]);
+        }
+
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+            return joinDiagnosis(
+                `${status} Client Error`,
+                '请求被服务端按客户端错误处理。',
+                '参数、权限、路径、账号状态、请求频率或兼容性问题。',
+                '优先检查配置、模型名、权限和请求格式。'
+            );
+        }
 
         if (typeof status === 'number' && status >= 500) {
-            return `生成接口 ${status}：可能与后端、反代、上游服务、网络链路或请求格式有关。`;
+            return joinDiagnosis(
+                `${status} Server Error`,
+                '服务端、网关、反代或上游发生错误。',
+                '上游服务异常、反代故障、源站超时、服务器过载。',
+                '保留脱敏报告，检查服务端/反代日志；用户侧可稍后重试或换线路。'
+            );
         }
 
         return `HTTP ${status}：需要结合路径分类和控制台继续判断。`;
@@ -1472,6 +1617,79 @@
         addEvent('DRAG_BOUND');
     }
 
+
+    // STDH4C_HTTP_SIM_TEST_V042
+    function simulateHttpError(status, kind) {
+        const finalKind = kind || 'generation';
+
+        let url = '/api/backends/stdh4c-simulated/generate';
+        let method = 'POST';
+
+        if (finalKind === 'background') {
+            url = '/api/extensions/version';
+            method = 'POST';
+        }
+
+        if (finalKind === 'unknown') {
+            url = '/__stdh4c_simulated_unknown';
+            method = 'GET';
+        }
+
+        const finalStatus = status === 'NETWORK_ERROR'
+            ? 'NETWORK_ERROR'
+            : Number(status);
+
+        recordHttpError({
+            status: finalStatus,
+            method,
+            url,
+            durationMs: finalStatus === 524 ? 100000 : 4321
+        });
+
+        addEvent('SIMULATED_HTTP_' + finalStatus, finalKind);
+        render();
+    }
+
+    function mountHttpSimPanel() {
+        if (document.getElementById('stdh4c-http-sim')) return;
+
+        const panel = document.getElementById('stdh4c-panel');
+        if (!panel) return;
+
+        const box = document.createElement('div');
+        box.id = 'stdh4c-http-sim';
+        box.className = 'stdh4c-section';
+
+        box.innerHTML = `
+            <div class="stdh4c-title">HTTP 状态码模拟测试</div>
+            <div class="stdh4c-note">
+                仅用于本地测试解释文本，不发送真实 API 请求。测完请点“清空 HTTP”。
+            </div>
+            <div class="stdh4c-actions">
+                <button id="stdh4c-sim-403" type="button">模拟 403</button>
+                <button id="stdh4c-sim-429" type="button">模拟 429</button>
+            </div>
+            <div class="stdh4c-actions">
+                <button id="stdh4c-sim-503" type="button">模拟 503</button>
+                <button id="stdh4c-sim-524" type="button">模拟 524</button>
+            </div>
+            <div class="stdh4c-actions">
+                <button id="stdh4c-sim-net" type="button">模拟 NETWORK</button>
+                <button id="stdh4c-sim-bg" type="button">模拟后台失败</button>
+            </div>
+        `;
+
+        panel.appendChild(box);
+
+        document.getElementById('stdh4c-sim-403').onclick = () => simulateHttpError(403, 'generation');
+        document.getElementById('stdh4c-sim-429').onclick = () => simulateHttpError(429, 'generation');
+        document.getElementById('stdh4c-sim-503').onclick = () => simulateHttpError(503, 'generation');
+        document.getElementById('stdh4c-sim-524').onclick = () => simulateHttpError(524, 'generation');
+        document.getElementById('stdh4c-sim-net').onclick = () => simulateHttpError('NETWORK_ERROR', 'generation');
+        document.getElementById('stdh4c-sim-bg').onclick = () => simulateHttpError('NETWORK_ERROR', 'background');
+    }
+
+
     function boot() {
         mountUI();
         addEvent('PLUGIN_IMPORTED');
@@ -1496,6 +1714,7 @@
         setInterval(() => {
             sanitizeGenerationState('watchdog');
             mountUI();
+            mountHttpSimPanel();
             render();
         }, 1200);
 
