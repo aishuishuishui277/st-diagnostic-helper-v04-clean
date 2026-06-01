@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.4.8';
+    const VERSION = '0.4.19b-refresh-fix';
     const POS_KEY = 'stdh4c.position.v1';
     const LOG_PREFIX = '[STDH4C]';
 
@@ -720,6 +720,7 @@
             status: info.status,
             method: info.method || 'GET',
             url: safeUrl(info.url || ''),
+            target: safeTarget(info.url || ''),
             durationMs: Math.round(info.durationMs || 0)
         };
 
@@ -885,67 +886,10 @@
         return realHttpErrors().filter(x => x.category === 'unknown');
     }
 
-    function linkHealth() {
-        const genErr = generationHttpErrors();
-        const bgErr = backgroundHttpErrors();
-        const unkErr = unknownHttpErrors();
-        const last = state.lastGeneration;
+    
+    // removed duplicate core dead function by v0.4.17
 
-        if (genErr.length) {
-            const e = genErr[genErr.length - 1];
-            return {
-                status: 'Generation HTTP Error',
-                reason: `捕获到生成相关 HTTP ${e.status}：${e.explanation}`
-            };
-        }
-
-        if (!last) {
-            return { status: 'Incomplete', reason: '还没有捕获完整生成。' };
-        }
-
-        if (last.stopped) {
-            return {
-                status: 'User Stopped',
-                reason: '最近一次生成被用户手动停止。若回复不完整，通常不应归因于模型或 API 失败。'
-            };
-        }
-
-        if (!last.messageReceived) {
-            return {
-                status: 'Incomplete',
-                reason: '最近一次生成结束，但未确认收到回复事件。'
-            };
-        }
-
-        if (last.streamTokens === 0) {
-            return {
-                status: 'Stream Unclear',
-                reason: '最近一次生成没有捕获流式 chunk/token。若启用了流式，建议检查接口流式兼容。'
-            };
-        }
-
-        if (bgErr.length) {
-            return {
-                status: 'Healthy with Background Notice',
-                reason: '生成链路正常，但捕获到后台/扩展 HTTP 提示。'
-            };
-        }
-
-        if (unkErr.length) {
-            return {
-                status: 'Healthy with Unknown HTTP Notice',
-                reason: '生成链路正常，但捕获到未分类 HTTP 错误。'
-            };
-        }
-
-        return {
-            status: 'Healthy',
-            reason: '最近生成链路正常，未发现明显生成相关风险。'
-        };
-    }
-
-
-    // STDH4C_STUCK_FIX_V041
+// STDH4C_STUCK_FIX_V041
     function parseTimeMs(value) {
         const t = Date.parse(value || '');
         return Number.isFinite(t) ? t : 0;
@@ -1009,61 +953,13 @@
     }
 
 
-    function generationSummary() {
-        sanitizeGenerationState('summary');
-        const cur = state.currentGeneration;
-        const last = state.lastGeneration;
+    
+    // removed duplicate core dead function by v0.4.17
 
-        if (cur) {
-            const sec = Math.round((Date.now() - new Date(cur.startedAt).getTime()) / 1000);
-            return `正在生成：已耗时 ${sec} 秒；已捕获 ${cur.streamTokens || 0} 次 chunk/token。`;
-        }
 
-        if (!last) return '最近生成：尚未捕获完整生成。';
+    // removed duplicate core dead function by v0.4.17
 
-        const parts = [];
-        parts.push('最近生成：已结束');
-        parts.push(`耗时 ${Math.round((last.durationMs || 0) / 1000)} 秒`);
-
-        if (last.firstTokenLatencyMs !== null && last.firstTokenLatencyMs !== undefined) {
-            parts.push(`首 chunk 延迟 ${Math.round(last.firstTokenLatencyMs / 1000)} 秒`);
-        } else {
-            parts.push('未捕获首 chunk 延迟');
-        }
-
-        parts.push(`已捕获 ${last.streamTokens || 0} 次 chunk/token`);
-        parts.push(`触发类型：${last.triggerType || 'unknown'}`);
-        parts.push(last.stopped ? '停止状态：用户手动停止' : '停止状态：正常结束');
-
-        return parts.join('；');
-    }
-
-    function riskText() {
-        sanitizeGenerationState('risk');
-        const health = linkHealth();
-
-        if (health.status === 'Generation HTTP Error') return health.reason;
-
-        if (state.currentGeneration) {
-            return '当前正在生成。若长时间没有首 chunk，可能需要检查上游响应、网络或请求端状态。';
-        }
-
-        if (!state.lastGeneration) {
-            return '还没有捕获完整生成。请先发送一条消息测试生成链路。';
-        }
-
-        if (state.lastGeneration.stopped) {
-            return '最近一次生成被标记为用户手动停止。若回复不完整，通常不应归因于模型或 API 失败。';
-        }
-
-        if (state.lastGeneration.streamTokens === 0) {
-            return '最近一次生成未捕获流式事件。若你启用了流式，建议检查接口流式兼容或网络链路。';
-        }
-
-        return '最近生成链路正常，未发现明显生成链路风险。';
-    }
-
-    function compactEvents(events) {
+function compactEvents(events) {
         const groups = [];
 
         for (const e of events || []) {
@@ -1101,73 +997,12 @@
         return compactEvents(state.events).slice(-30);
     }
 
-    function generationImpactLines() {
-        const gen = generationHttpErrors();
-        const bg = backgroundHttpErrors();
-        const unk = unknownHttpErrors();
-        const last = state.lastGeneration;
+    
+    // removed duplicate core dead function by v0.4.17
 
-        if (gen.length) {
-            const e = gen[gen.length - 1];
-            return [
-                'Generation Impact: generation-related HTTP error captured.',
-                `Latest generation-related error: HTTP_${e.status} ${e.method} ${e.url}.`,
-                e.explanation
-            ];
-        }
+// removed duplicate token-lens dead function by v0.4.16
 
-        if (last && bg.length) {
-            return [
-                'Generation Impact: no generation-related HTTP errors captured.',
-                'Background / extension HTTP notices were captured, but the latest generation completed normally.'
-            ];
-        }
-
-        if (last && unk.length) {
-            return [
-                'Generation Impact: no classified generation HTTP errors captured.',
-                'Unknown HTTP errors were captured; review paths before treating them as generation failures.'
-            ];
-        }
-
-        if (last) return ['Generation Impact: no generation-related HTTP errors captured.'];
-
-        return ['Generation Impact: no complete generation captured yet.'];
-    }
-
-
-    function addTokenLensReport(lines) {
-        const lens = buildTokenLensSnapshot();
-
-        lines.push('');
-        lines.push('## Prompt Token Lens');
-        lines.push('- Mode: ' + lens.mode);
-        lines.push('- Visible Prompt Tokens: ' + lens.promptTokens);
-        lines.push('- Visible Prompt Characters: ' + lens.chars);
-        lines.push('- Context Window: ' + (lens.contextWindow || '(unknown)'));
-        lines.push('- Max Response: ' + (lens.maxResponse || '(unknown)'));
-        lines.push('- Usable Context Estimate: ' + (lens.usableContext || '(unknown)'));
-        lines.push('- Context Usage: ' + (lens.usagePercent ? lens.usagePercent + '%' : '(unknown)'));
-        lines.push('- Risk Level: ' + lens.risk);
-        lines.push('- Chat History Tokens: ' + lens.chatTokens);
-        lines.push('- Character Definition Tokens: ' + lens.characterTokens);
-        lines.push('- Persona Tokens: ' + lens.personaTokens);
-        lines.push('- Last User Message Tokens: ' + lens.lastUserTokens);
-        lines.push('- Last Assistant Message Tokens: ' + lens.lastAssistantTokens);
-        lines.push('- WorldInfo Related Events: ' + lens.worldInfoEvents);
-
-        if (lens.notes.length) {
-            lines.push('- Notes:');
-            for (const note of lens.notes) lines.push('  - ' + note);
-        } else {
-            lines.push('- Notes: no obvious prompt-size risk detected.');
-        }
-
-        lines.push('- Privacy: token counts only; prompt text is not included.');
-    }
-
-
-    function addHttpReport(lines) {
+function addHttpReport(lines) {
         lines.push('');
         lines.push('## HTTP Request Classification');
         lines.push('- Classifier: path/status only; request bodies, response bodies, headers, query strings, and API keys are not recorded.');
@@ -1423,7 +1258,7 @@
             document.getElementById('stdh4c-panel').style.display = 'none';
         };
 
-        document.getElementById('stdh4c-copy-community').onclick = () => copyText(buildReport(true));
+        document.getElementById('stdh4c-copy-community').onclick = () => copyText(buildCommunityReport());
         document.getElementById('stdh4c-copy-full').onclick = () => copyText(buildReport(false));
         document.getElementById('stdh4c-refresh').onclick = () => addEvent('MANUAL_REFRESH');
 
@@ -1935,51 +1770,10 @@
         return state.events.filter(event => String(event.name || '').includes('WORLDINFO')).length;
     }
 
-    function buildTokenLensSnapshot() {
-        const chat = sumTexts(chatTexts());
-        const character = sumTexts(characterTexts());
-        const persona = sumTexts(personaTexts());
-        const lastUser = lastMessageTokens('user');
-        const lastAssistant = lastMessageTokens('assistant');
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
-        const promptTokens = chat.tokens + character.tokens + persona.tokens;
-        const chars = chat.chars + character.chars + persona.chars;
-        const contextWindow = contextWindowSafe();
-        const maxResponse = maxResponseSafe();
-        const usable = contextWindow ? Math.max(1, contextWindow - (maxResponse || 0)) : 0;
-        const usagePercent = usable ? Math.round((promptTokens / usable) * 100) : 0;
-        const risk = tokenRiskLevel(promptTokens, contextWindow, maxResponse);
-
-        const notes = [];
-
-        if (!contextWindow) notes.push('未能读取上下文窗口，风险比例仅供参考。');
-        if (character.tokens > 10000) notes.push('角色定义较大，可能影响上下文占用。');
-        if (chat.tokens > 0 && contextWindow && chat.tokens / Math.max(1, contextWindow) > 0.7) notes.push('聊天历史占用较高，必要时考虑裁剪历史。');
-        if (lastUser.tokens > 3000) notes.push('最近用户输入较长。');
-        if (worldInfoEventCount() > 0) notes.push('本会话捕获到世界书相关事件，如上下文异常膨胀可检查世界书触发。');
-
-        return {
-            mode: 'estimated',
-            promptTokens,
-            chars,
-            contextWindow,
-            maxResponse,
-            usableContext: usable,
-            usagePercent,
-            risk,
-            chatTokens: chat.tokens,
-            characterTokens: character.tokens,
-            personaTokens: persona.tokens,
-            lastUserTokens: lastUser.tokens,
-            lastAssistantTokens: lastAssistant.tokens,
-            worldInfoEvents: worldInfoEventCount(),
-            notes
-        };
-    }
-
-
-
-    // STDH4C_TOKEN_LENS_UI_V043
+// STDH4C_TOKEN_LENS_UI_V043
     function mountTokenLensPanel() {
         if (document.getElementById('stdh4c-token-lens')) return;
 
@@ -2008,36 +1802,10 @@
         renderTokenLensUI();
     }
 
-    function renderTokenLensUI() {
-        const summary = document.getElementById('stdh4c-token-summary');
-        const detail = document.getElementById('stdh4c-token-detail');
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
-        if (!summary || !detail) return;
-
-        const lens = buildTokenLensSnapshot();
-
-        summary.textContent =
-            `Risk: ${lens.risk}｜Prompt Tokens: ${lens.promptTokens}` +
-            `｜Context Usage: ${lens.usagePercent ? lens.usagePercent + '%' : 'unknown'}` +
-            `｜Mode: ${lens.mode}`;
-
-        detail.innerHTML = [
-            row('Context Window', lens.contextWindow || '(unknown)'),
-            row('Max Response', lens.maxResponse || '(unknown)'),
-            row('Usable Context', lens.usableContext || '(unknown)'),
-            row('Chat History Tokens', lens.chatTokens),
-            row('Character Tokens', lens.characterTokens),
-            row('Persona Tokens', lens.personaTokens),
-            row('Last User Tokens', lens.lastUserTokens),
-            row('Last Assistant Tokens', lens.lastAssistantTokens),
-            row('WorldInfo Events', lens.worldInfoEvents),
-            row('Notes', lens.notes.length ? lens.notes.join(' / ') : 'no obvious prompt-size risk')
-        ].join('');
-    }
-
-
-
-    // STDH4C_V044_TOKEN_LENS_FIX
+// STDH4C_V044_TOKEN_LENS_FIX
     function isGoodGeneration(gen) {
         return Boolean(
             gen &&
@@ -2118,164 +1886,16 @@
         return true;
     }
 
-    function buildTokenLensSnapshot() {
-        rememberGoodGeneration();
-
-        const chat = sumTexts(chatTexts());
-        const character = sumTexts(characterTexts());
-        const persona = sumTexts(personaTexts());
-        const lastUser = lastMessageTokens('user');
-        const lastAssistant = lastMessageTokens('assistant');
-
-        const partialTokens = chat.tokens + character.tokens + persona.tokens;
-        const partialChars = chat.chars + character.chars + persona.chars;
-
-        const promptViewerTotal = promptViewerTotalTokensFromDom();
-        const bestTokens = promptViewerTotal || partialTokens;
-        const coverageGap = promptViewerTotal
-            ? Math.max(0, promptViewerTotal - partialTokens)
-            : 0;
-
-        const contextWindow = contextWindowSafe();
-        const rawMaxResponse = maxResponseSafe();
-
-        const reliableContext = contextLooksReliable(contextWindow, rawMaxResponse, bestTokens);
-        const maxResponse = reliableContext ? rawMaxResponse : 0;
-
-        const usable = reliableContext
-            ? Math.max(1, contextWindow - (maxResponse || 0))
-            : 0;
-
-        const usagePercent = usable
-            ? Math.round((bestTokens / usable) * 100)
-            : 0;
-
-        const risk = reliableContext
-            ? tokenRiskLevel(bestTokens, contextWindow, maxResponse)
-            : 'Unknown';
-
-        const notes = [];
-
-        if (promptViewerTotal) {
-            notes.push('检测到提示词查看器总 token，可作为更接近实际拼装提示词的参考。');
-        } else {
-            notes.push('未检测到提示词查看器总 token；当前仅统计可见聊天、角色和 persona。');
-        }
-
-        if (coverageGap > 0) {
-            notes.push('差值可能来自预设、系统提示词、世界书、扩展注入或 Prompt Manager 拼接项。');
-        }
-
-        if (!reliableContext) {
-            notes.push('上下文窗口或最大回复字段不可靠，已停止计算百分比风险，避免误报。');
-        }
-
-        if (character.tokens > 10000) {
-            notes.push('角色定义较大，可能影响上下文占用。');
-        }
-
-        if (lastUser.tokens > 3000) {
-            notes.push('最近用户输入较长。');
-        }
-
-        if (worldInfoEventCount() > 0) {
-            notes.push('本会话捕获到世界书相关事件，如上下文异常膨胀可检查世界书触发。');
-        }
-
-        return {
-            mode: promptViewerTotal ? 'prompt-viewer + partial' : 'partial-estimate',
-            promptTokens: bestTokens,
-            partialVisibleTokens: partialTokens,
-            promptViewerTotalTokens: promptViewerTotal,
-            coverageGap,
-            chars: partialChars,
-            contextWindow,
-            maxResponse: rawMaxResponse,
-            usableContext: usable,
-            usagePercent,
-            risk,
-            reliableContext,
-            chatTokens: chat.tokens,
-            characterTokens: character.tokens,
-            personaTokens: persona.tokens,
-            lastUserTokens: lastUser.tokens,
-            lastAssistantTokens: lastAssistant.tokens,
-            worldInfoEvents: worldInfoEventCount(),
-            notes
-        };
-    }
-
-    function addTokenLensReport(lines) {
-        const lens = buildTokenLensSnapshot();
-
-        lines.push('');
-        lines.push('## Prompt Token Lens');
-        lines.push('- Mode: ' + lens.mode);
-        lines.push('- Best Available Prompt Tokens: ' + lens.promptTokens);
-        lines.push('- Partial Visible Tokens: ' + lens.partialVisibleTokens);
-        lines.push('- Prompt Viewer Total Tokens: ' + (lens.promptViewerTotalTokens || '(not detected)'));
-        lines.push('- Coverage Gap Estimate: ' + (lens.coverageGap || 0));
-        lines.push('- Partial Visible Characters: ' + lens.chars);
-        lines.push('- Context Window: ' + (lens.contextWindow || '(unknown)'));
-        lines.push('- Max Response Raw Field: ' + (lens.maxResponse || '(unknown)'));
-        lines.push('- Context Usage: ' + (
-            lens.reliableContext && lens.usagePercent
-                ? lens.usagePercent + '%'
-                : '(not calculated: context/max response field unreliable)'
-        ));
-        lines.push('- Risk Level: ' + lens.risk);
-        lines.push('- Chat History Tokens: ' + lens.chatTokens);
-        lines.push('- Character Definition Tokens: ' + lens.characterTokens);
-        lines.push('- Persona Tokens: ' + lens.personaTokens);
-        lines.push('- Last User Message Tokens: ' + lens.lastUserTokens);
-        lines.push('- Last Assistant Message Tokens: ' + lens.lastAssistantTokens);
-        lines.push('- WorldInfo Related Events: ' + lens.worldInfoEvents);
-
-        if (lens.notes.length) {
-            lines.push('- Notes:');
-            for (const note of lens.notes) lines.push('  - ' + note);
-        } else {
-            lines.push('- Notes: no obvious prompt-size risk detected.');
-        }
-
-        lines.push('- Privacy: token counts only; prompt text is not included.');
-    }
-
-    function renderTokenLensUI() {
-        const summary = document.getElementById('stdh4c-token-summary');
-        const detail = document.getElementById('stdh4c-token-detail');
-
-        if (!summary || !detail) return;
-
-        const lens = buildTokenLensSnapshot();
-
-        summary.textContent =
-            `Risk: ${lens.risk}｜Best Tokens: ${lens.promptTokens}` +
-            `｜Partial: ${lens.partialVisibleTokens}` +
-            `｜Viewer: ${lens.promptViewerTotalTokens || 'not detected'}`;
-
-        detail.innerHTML = [
-            row('Mode', lens.mode),
-            row('Best Available Tokens', lens.promptTokens),
-            row('Partial Visible Tokens', lens.partialVisibleTokens),
-            row('Prompt Viewer Total', lens.promptViewerTotalTokens || '(not detected)'),
-            row('Coverage Gap', lens.coverageGap || 0),
-            row('Context Window', lens.contextWindow || '(unknown)'),
-            row('Max Response Raw', lens.maxResponse || '(unknown)'),
-            row('Context Usage', lens.reliableContext && lens.usagePercent ? lens.usagePercent + '%' : 'not calculated'),
-            row('Chat History Tokens', lens.chatTokens),
-            row('Character Tokens', lens.characterTokens),
-            row('Persona Tokens', lens.personaTokens),
-            row('Last User Tokens', lens.lastUserTokens),
-            row('Last Assistant Tokens', lens.lastAssistantTokens),
-            row('WorldInfo Events', lens.worldInfoEvents),
-            row('Notes', lens.notes.length ? lens.notes.join(' / ') : 'no obvious prompt-size risk')
-        ].join('');
-    }
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
 
+    // removed duplicate token-lens dead function by v0.4.16
 
-    // STDH4C_V045_ITEMIZED_PROMPT_LENS
+
+    // removed duplicate token-lens dead function by v0.4.16
+
+// STDH4C_V045_ITEMIZED_PROMPT_LENS
     function nnum(value) {
         const n = Number(value);
         return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
@@ -2457,183 +2077,18 @@
         }
     }
 
-    function buildTokenLensSnapshot() {
-        normalizeStopState('token-lens');
-
-        const exact = state.itemizedLensCache;
-
-        if (exact?.available && exact.total > 0) {
-            const risk = promptRiskFromLimit(exact.total, exact.promptLimit);
-
-            const notes = [];
-
-            notes.push('使用 SillyTavern Prompt Itemization 数据，接近提示词查看器统计。');
-
-            if (!exact.promptLimit) {
-                notes.push('未取得可靠 prompt limit，因此风险百分比不计算。');
-            }
-
-            if (exact.worldInfoTokens > 0) {
-                notes.push('本次提示词包含世界书/外部上下文内容。');
-            }
-
-            return {
-                mode: exact.mode,
-                promptTokens: exact.total,
-                partialVisibleTokens: 0,
-                promptViewerTotalTokens: exact.total,
-                coverageGap: 0,
-                promptLimit: exact.promptLimit,
-                usagePercent: exact.promptLimit ? Math.round((exact.total / exact.promptLimit) * 100) : 0,
-                risk,
-                tokenizer: exact.tokenizer,
-                chatTokens: exact.chatTokens,
-                characterTokens: exact.characterTokens,
-                worldInfoTokens: exact.worldInfoTokens,
-                examplesTokens: exact.examplesTokens,
-                systemTokens: exact.systemTokens,
-                anchorTokens: exact.anchorTokens,
-                lastUserTokens: lastMessageTokens('user').tokens,
-                lastAssistantTokens: lastMessageTokens('assistant').tokens,
-                worldInfoEvents: worldInfoEventCount(),
-                notes
-            };
-        }
-
-        const chat = sumTexts(chatTexts());
-        const character = sumTexts(characterTexts());
-        const persona = sumTexts(personaTexts());
-        const lastUser = lastMessageTokens('user');
-        const lastAssistant = lastMessageTokens('assistant');
-
-        const partialTokens = chat.tokens + character.tokens + persona.tokens;
-
-        return {
-            mode: 'partial-fallback',
-            promptTokens: partialTokens,
-            partialVisibleTokens: partialTokens,
-            promptViewerTotalTokens: 0,
-            coverageGap: 0,
-            promptLimit: 0,
-            usagePercent: 0,
-            risk: 'Unknown',
-            tokenizer: '(unknown)',
-            chatTokens: chat.tokens,
-            characterTokens: character.tokens,
-            worldInfoTokens: 0,
-            examplesTokens: 0,
-            systemTokens: 0,
-            anchorTokens: 0,
-            lastUserTokens: lastUser.tokens,
-            lastAssistantTokens: lastAssistant.tokens,
-            worldInfoEvents: worldInfoEventCount(),
-            notes: [
-                exact?.reason || '未读取到 Prompt Itemization 数据；当前仅显示部分可见估算。',
-                '如需完整统计，请先生成一次回复，再打开提示词查看器。'
-            ]
-        };
-    }
-
-    function generationSummary() {
-        normalizeStopState('generation-summary');
-
-        const cur = state.currentGeneration;
-        const last = state.lastGeneration;
-
-        if (cur) {
-            const sec = Math.round((Date.now() - new Date(cur.startedAt).getTime()) / 1000);
-            return `正在生成：已耗时 ${sec} 秒；已捕获 ${cur.streamTokens || 0} 次 chunk/token。`;
-        }
-
-        if (!last) return '最近生成：尚未捕获完整生成。';
-
-        const parts = [];
-
-        parts.push('最近尝试：已结束');
-        parts.push(`耗时 ${Math.round((last.durationMs || 0) / 1000)} 秒`);
-
-        if (last.firstTokenLatencyMs !== null && last.firstTokenLatencyMs !== undefined) {
-            parts.push(`首 chunk 延迟 ${Math.round(last.firstTokenLatencyMs / 1000)} 秒`);
-        } else {
-            parts.push('未捕获首 chunk 延迟');
-        }
-
-        parts.push(`已捕获 ${last.streamTokens || 0} 次 chunk/token`);
-        parts.push(`触发类型：${last.triggerType || 'unknown'}`);
-
-        if (last.errorAborted) {
-            parts.push('停止状态：错误中断');
-        } else if (last.stopped) {
-            parts.push('停止状态：用户手动停止');
-        } else {
-            parts.push('停止状态：正常结束');
-        }
-
-        return parts.join('；');
-    }
-
-    function addTokenLensReport(lines) {
-        const lens = buildTokenLensSnapshot();
-
-        lines.push('');
-        lines.push('## Prompt Token Lens');
-        lines.push('- Mode: ' + lens.mode);
-        lines.push('- Best Available Prompt Tokens: ' + lens.promptTokens);
-        lines.push('- Prompt Itemization Tokens: ' + (lens.promptViewerTotalTokens || '(not available)'));
-        lines.push('- Prompt Limit: ' + (lens.promptLimit || '(unknown)'));
-        lines.push('- Context Usage: ' + (lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'));
-        lines.push('- Risk Level: ' + lens.risk);
-        lines.push('- Tokenizer: ' + lens.tokenizer);
-        lines.push('- Chat History Tokens: ' + lens.chatTokens);
-        lines.push('- Character Definition Tokens: ' + lens.characterTokens);
-        lines.push('- System / Preset Tokens: ' + lens.systemTokens);
-        lines.push('- WorldInfo Tokens: ' + lens.worldInfoTokens);
-        lines.push('- Example Messages Tokens: ' + lens.examplesTokens);
-        lines.push('- Anchor / Injection Tokens: ' + lens.anchorTokens);
-        lines.push('- Last User Message Tokens: ' + lens.lastUserTokens);
-        lines.push('- Last Assistant Message Tokens: ' + lens.lastAssistantTokens);
-        lines.push('- WorldInfo Related Events: ' + lens.worldInfoEvents);
-
-        if (lens.notes.length) {
-            lines.push('- Notes:');
-            for (const note of lens.notes) lines.push('  - ' + note);
-        }
-
-        lines.push('- Privacy: token counts only; prompt text is not included.');
-    }
-
-    function renderTokenLensUI() {
-        const summary = document.getElementById('stdh4c-token-summary');
-        const detail = document.getElementById('stdh4c-token-detail');
-
-        if (!summary || !detail) return;
-
-        const lens = buildTokenLensSnapshot();
-
-        summary.textContent =
-            `Risk: ${lens.risk}｜Tokens: ${lens.promptTokens}` +
-            `｜Mode: ${lens.mode}`;
-
-        detail.innerHTML = [
-            row('Prompt Tokens', lens.promptTokens),
-            row('Prompt Limit', lens.promptLimit || '(unknown)'),
-            row('Context Usage', lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'),
-            row('Tokenizer', lens.tokenizer),
-            row('Chat History', lens.chatTokens),
-            row('Character', lens.characterTokens),
-            row('System / Preset', lens.systemTokens),
-            row('WorldInfo', lens.worldInfoTokens),
-            row('Examples', lens.examplesTokens),
-            row('Anchors / Injection', lens.anchorTokens),
-            row('Last User', lens.lastUserTokens),
-            row('Last Assistant', lens.lastAssistantTokens),
-            row('Notes', lens.notes.join(' / '))
-        ].join('');
-    }
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
 
+    // removed duplicate core dead function by v0.4.17
 
-    // STDH4C_V046_REPORT_AND_TOKEN_FIX
+// removed duplicate token-lens dead function by v0.4.16
+
+
+    // removed duplicate token-lens dead function by v0.4.16
+
+// STDH4C_V046_REPORT_AND_TOKEN_FIX
     function latestAttemptIsHardError() {
         const last = state.lastGeneration;
 
@@ -2777,170 +2232,16 @@
         }
     }
 
-    function buildTokenLensSnapshot() {
-        normalizeStopState('token-lens-v046');
-
-        const domTotal = promptViewerDomTotalTokensV046();
-        const exact = state.itemizedLensCache;
-
-        const hasItemized = Boolean(exact?.available && exact.total > 0);
-        const itemizedTotal = hasItemized ? exact.total : 0;
-
-        if (domTotal > 0 || itemizedTotal > 0) {
-            const bestTotal = domTotal || itemizedTotal;
-            const sourceMode = domTotal
-                ? 'prompt-viewer-dom'
-                : 'sillytavern-itemized-prompts';
-
-            const promptLimit = hasItemized ? exact.promptLimit : 0;
-            const safeLimit = promptLimit && promptLimit > bestTotal ? promptLimit : 0;
-
-            const usagePercent = safeLimit
-                ? Math.round((bestTotal / safeLimit) * 100)
-                : 0;
-
-            const risk = safeLimit
-                ? promptRiskFromLimit(bestTotal, safeLimit)
-                : 'Unknown';
-
-            const notes = [];
-
-            if (domTotal) {
-                notes.push('已读取提示词查看器顶部总 token，优先作为最接近 UI 的统计。');
-            }
-
-            if (itemizedTotal && domTotal && Math.abs(domTotal - itemizedTotal) > 500) {
-                notes.push('提示词查看器总数与内部 itemized total 不一致，报告优先采用提示词查看器显示值。');
-            }
-
-            if (!safeLimit) {
-                notes.push('未取得可靠 prompt limit，因此不计算上下文百分比风险。');
-            }
-
-            if (hasItemized && exact.worldInfoTokens > 0) {
-                notes.push('本次提示词包含世界书/外部上下文内容。');
-            }
-
-            return {
-                mode: sourceMode,
-                promptTokens: bestTotal,
-                promptViewerTotalTokens: domTotal,
-                itemizedTotalTokens: itemizedTotal,
-                promptLimit: safeLimit,
-                usagePercent,
-                risk,
-                tokenizer: hasItemized ? exact.tokenizer : '(unknown)',
-                chatTokens: hasItemized ? exact.chatTokens : 0,
-                characterTokens: hasItemized ? exact.characterTokens : 0,
-                worldInfoTokens: hasItemized ? exact.worldInfoTokens : 0,
-                examplesTokens: hasItemized ? exact.examplesTokens : 0,
-                systemTokens: hasItemized ? exact.systemTokens : 0,
-                anchorTokens: hasItemized ? exact.anchorTokens : 0,
-                lastUserTokens: lastMessageTokens('user').tokens,
-                lastAssistantTokens: lastMessageTokens('assistant').tokens,
-                worldInfoEvents: worldInfoEventCount(),
-                notes
-            };
-        }
-
-        const chat = sumTexts(chatTexts());
-        const character = sumTexts(characterTexts());
-        const persona = sumTexts(personaTexts());
-        const lastUser = lastMessageTokens('user');
-        const lastAssistant = lastMessageTokens('assistant');
-
-        const partialTokens = chat.tokens + character.tokens + persona.tokens;
-
-        return {
-            mode: 'partial-fallback',
-            promptTokens: partialTokens,
-            promptViewerTotalTokens: 0,
-            itemizedTotalTokens: 0,
-            promptLimit: 0,
-            usagePercent: 0,
-            risk: 'Unknown',
-            tokenizer: '(unknown)',
-            chatTokens: chat.tokens,
-            characterTokens: character.tokens,
-            worldInfoTokens: 0,
-            examplesTokens: 0,
-            systemTokens: 0,
-            anchorTokens: 0,
-            lastUserTokens: lastUser.tokens,
-            lastAssistantTokens: lastAssistant.tokens,
-            worldInfoEvents: worldInfoEventCount(),
-            notes: [
-                '未读取到提示词查看器总数或 Prompt Itemization 数据；当前仅显示部分可见估算。',
-                '请先生成一次回复，并打开提示词查看器后再复制报告。'
-            ]
-        };
-    }
-
-    function addTokenLensReport(lines) {
-        const lens = buildTokenLensSnapshot();
-
-        lines.push('');
-        lines.push('## Prompt Token Lens');
-        lines.push('- Mode: ' + lens.mode);
-        lines.push('- Best Available Prompt Tokens: ' + lens.promptTokens);
-        lines.push('- Prompt Viewer DOM Tokens: ' + (lens.promptViewerTotalTokens || '(not detected)'));
-        lines.push('- Itemized Internal Tokens: ' + (lens.itemizedTotalTokens || '(not available)'));
-        lines.push('- Prompt Limit: ' + (lens.promptLimit || '(unknown)'));
-        lines.push('- Context Usage: ' + (lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'));
-        lines.push('- Risk Level: ' + lens.risk);
-        lines.push('- Tokenizer: ' + lens.tokenizer);
-        lines.push('- Chat History Tokens: ' + lens.chatTokens);
-        lines.push('- Character Definition Tokens: ' + lens.characterTokens);
-        lines.push('- System / Preset Tokens: ' + lens.systemTokens);
-        lines.push('- WorldInfo Tokens: ' + lens.worldInfoTokens);
-        lines.push('- Example Messages Tokens: ' + lens.examplesTokens);
-        lines.push('- Anchor / Injection Tokens: ' + lens.anchorTokens);
-        lines.push('- Last User Message Tokens: ' + lens.lastUserTokens);
-        lines.push('- Last Assistant Message Tokens: ' + lens.lastAssistantTokens);
-        lines.push('- WorldInfo Related Events: ' + lens.worldInfoEvents);
-
-        if (lens.notes.length) {
-            lines.push('- Notes:');
-            for (const note of lens.notes) lines.push('  - ' + note);
-        }
-
-        lines.push('- Privacy: token counts only; prompt text is not included.');
-    }
-
-    function renderTokenLensUI() {
-        const summary = document.getElementById('stdh4c-token-summary');
-        const detail = document.getElementById('stdh4c-token-detail');
-
-        if (!summary || !detail) return;
-
-        const lens = buildTokenLensSnapshot();
-
-        summary.textContent =
-            `Risk: ${lens.risk}｜Tokens: ${lens.promptTokens}` +
-            `｜Mode: ${lens.mode}`;
-
-        detail.innerHTML = [
-            row('Best Prompt Tokens', lens.promptTokens),
-            row('Prompt Viewer DOM', lens.promptViewerTotalTokens || '(not detected)'),
-            row('Itemized Internal', lens.itemizedTotalTokens || '(not available)'),
-            row('Prompt Limit', lens.promptLimit || '(unknown)'),
-            row('Context Usage', lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'),
-            row('Tokenizer', lens.tokenizer),
-            row('Chat History', lens.chatTokens),
-            row('Character', lens.characterTokens),
-            row('System / Preset', lens.systemTokens),
-            row('WorldInfo', lens.worldInfoTokens),
-            row('Examples', lens.examplesTokens),
-            row('Anchors / Injection', lens.anchorTokens),
-            row('Last User', lens.lastUserTokens),
-            row('Last Assistant', lens.lastAssistantTokens),
-            row('Notes', lens.notes.join(' / '))
-        ].join('');
-    }
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
 
+    // removed duplicate token-lens dead function by v0.4.16
 
-    // STDH4C_V047_PROMPT_VIEWER_TOTAL_FIX
+
+    // removed duplicate token-lens dead function by v0.4.16
+
+// STDH4C_V047_PROMPT_VIEWER_TOTAL_FIX
     function parsePromptTotalNumber(value) {
         const n = Number(String(value || '').replace(/[^\d]/g, ''));
         return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
@@ -3068,185 +2369,16 @@
         render();
     }
 
-    function buildTokenLensSnapshot() {
-        normalizeStopState('token-lens-v047');
+    
+    // removed duplicate token-lens dead function by v0.4.16
 
-        const domTotal = promptViewerDomTotalTokensV047();
-        const manualTotal = getManualPromptTotalOverride();
 
-        const exact = state.itemizedLensCache;
-        const hasItemized = Boolean(exact?.available && exact.total > 0);
-        const itemizedTotal = hasItemized ? exact.total : 0;
+    // removed duplicate token-lens dead function by v0.4.16
 
-        const bestTotal =
-            manualTotal ||
-            domTotal ||
-            itemizedTotal;
 
-        if (bestTotal > 0) {
-            let mode = 'unknown';
+    // removed duplicate token-lens dead function by v0.4.16
 
-            if (manualTotal) mode = 'manual-total-override';
-            else if (domTotal) mode = 'prompt-viewer-dom';
-            else mode = 'sillytavern-itemized-prompts';
-
-            const promptLimit = hasItemized ? exact.promptLimit : 0;
-            const safeLimit = promptLimit && promptLimit > bestTotal ? promptLimit : 0;
-
-            const usagePercent = safeLimit
-                ? Math.round((bestTotal / safeLimit) * 100)
-                : 0;
-
-            const risk = safeLimit
-                ? promptRiskFromLimit(bestTotal, safeLimit)
-                : 'Unknown';
-
-            const notes = [];
-
-            if (manualTotal) {
-                notes.push('使用用户手动填入的总 token，优先级最高。');
-            }
-
-            if (domTotal) {
-                notes.push('已从提示词查看器 DOM 中读取总 token。');
-            }
-
-            if (!domTotal && !manualTotal) {
-                notes.push('未从提示词查看器 DOM 读取到总 token，已回退到 SillyTavern itemized internal 数据。');
-            }
-
-            if (domTotal && itemizedTotal && Math.abs(domTotal - itemizedTotal) > 500) {
-                notes.push('提示词查看器总数与内部 itemized total 不一致，报告优先采用提示词查看器/手动总数。');
-            }
-
-            if (hasItemized && exact.worldInfoTokens > 0) {
-                notes.push('本次提示词包含世界书/外部上下文内容。');
-            }
-
-            if (!safeLimit) {
-                notes.push('未取得可靠 prompt limit，因此不计算上下文百分比风险。');
-            }
-
-            return {
-                mode,
-                promptTokens: bestTotal,
-                manualTotal,
-                promptViewerTotalTokens: domTotal,
-                itemizedTotalTokens: itemizedTotal,
-                promptLimit: safeLimit,
-                rawPromptLimit: promptLimit,
-                usagePercent,
-                risk,
-                tokenizer: hasItemized ? exact.tokenizer : '(unknown)',
-                chatTokens: hasItemized ? exact.chatTokens : 0,
-                characterTokens: hasItemized ? exact.characterTokens : 0,
-                worldInfoTokens: hasItemized ? exact.worldInfoTokens : 0,
-                examplesTokens: hasItemized ? exact.examplesTokens : 0,
-                systemTokens: hasItemized ? exact.systemTokens : 0,
-                anchorTokens: hasItemized ? exact.anchorTokens : 0,
-                lastUserTokens: lastMessageTokens('user').tokens,
-                lastAssistantTokens: lastMessageTokens('assistant').tokens,
-                worldInfoEvents: worldInfoEventCount(),
-                notes
-            };
-        }
-
-        return {
-            mode: 'not-available',
-            promptTokens: 0,
-            manualTotal: 0,
-            promptViewerTotalTokens: 0,
-            itemizedTotalTokens: 0,
-            promptLimit: 0,
-            rawPromptLimit: 0,
-            usagePercent: 0,
-            risk: 'Unknown',
-            tokenizer: '(unknown)',
-            chatTokens: 0,
-            characterTokens: 0,
-            worldInfoTokens: 0,
-            examplesTokens: 0,
-            systemTokens: 0,
-            anchorTokens: 0,
-            lastUserTokens: lastMessageTokens('user').tokens,
-            lastAssistantTokens: lastMessageTokens('assistant').tokens,
-            worldInfoEvents: worldInfoEventCount(),
-            notes: [
-                '未读取到提示词查看器 DOM、手动总数或 Prompt Itemization 数据。',
-                '请打开提示词查看器，或使用“手填总 token”。'
-            ]
-        };
-    }
-
-    function addTokenLensReport(lines) {
-        const lens = buildTokenLensSnapshot();
-
-        lines.push('');
-        lines.push('## Prompt Token Lens');
-        lines.push('- Mode: ' + lens.mode);
-        lines.push('- Best Available Prompt Tokens: ' + lens.promptTokens);
-        lines.push('- Manual Total Override: ' + (lens.manualTotal || '(not set)'));
-        lines.push('- Prompt Viewer DOM Tokens: ' + (lens.promptViewerTotalTokens || '(not detected)'));
-        lines.push('- Itemized Internal Tokens: ' + (lens.itemizedTotalTokens || '(not available)'));
-        lines.push('- Prompt Limit: ' + (lens.promptLimit || '(unknown)'));
-        lines.push('- Raw Prompt Limit Field: ' + (lens.rawPromptLimit || '(unknown)'));
-        lines.push('- Context Usage: ' + (lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'));
-        lines.push('- Risk Level: ' + lens.risk);
-        lines.push('- Tokenizer: ' + lens.tokenizer);
-        lines.push('- Chat History Tokens: ' + lens.chatTokens);
-        lines.push('- Character Definition Tokens: ' + lens.characterTokens);
-        lines.push('- System / Preset Tokens: ' + lens.systemTokens);
-        lines.push('- WorldInfo Tokens: ' + lens.worldInfoTokens);
-        lines.push('- Example Messages Tokens: ' + lens.examplesTokens);
-        lines.push('- Anchor / Injection Tokens: ' + lens.anchorTokens);
-        lines.push('- Last User Message Tokens: ' + lens.lastUserTokens);
-        lines.push('- Last Assistant Message Tokens: ' + lens.lastAssistantTokens);
-        lines.push('- WorldInfo Related Events: ' + lens.worldInfoEvents);
-
-        if (lens.notes.length) {
-            lines.push('- Notes:');
-            for (const note of lens.notes) lines.push('  - ' + note);
-        }
-
-        lines.push('- Privacy: token counts only; prompt text is not included.');
-    }
-
-    function renderTokenLensUI() {
-        const summary = document.getElementById('stdh4c-token-summary');
-        const detail = document.getElementById('stdh4c-token-detail');
-
-        if (!summary || !detail) return;
-
-        const lens = buildTokenLensSnapshot();
-
-        summary.textContent =
-            `Risk: ${lens.risk}｜Tokens: ${lens.promptTokens}` +
-            `｜Mode: ${lens.mode}`;
-
-        detail.innerHTML = [
-            row('Best Prompt Tokens', lens.promptTokens || '(unknown)'),
-            row('Manual Override', lens.manualTotal || '(not set)'),
-            row('Prompt Viewer DOM', lens.promptViewerTotalTokens || '(not detected)'),
-            row('Itemized Internal', lens.itemizedTotalTokens || '(not available)'),
-            row('Prompt Limit', lens.promptLimit || '(unknown)'),
-            row('Raw Prompt Limit', lens.rawPromptLimit || '(unknown)'),
-            row('Context Usage', lens.promptLimit ? lens.usagePercent + '%' : '(unknown)'),
-            row('Tokenizer', lens.tokenizer),
-            row('Chat History', lens.chatTokens),
-            row('Character', lens.characterTokens),
-            row('System / Preset', lens.systemTokens),
-            row('WorldInfo', lens.worldInfoTokens),
-            row('Examples', lens.examplesTokens),
-            row('Anchors / Injection', lens.anchorTokens),
-            row('Last User', lens.lastUserTokens),
-            row('Last Assistant', lens.lastAssistantTokens),
-            row('Notes', lens.notes.join(' / '))
-        ].join('');
-
-        mountPromptTotalControls();
-    }
-
-    function mountPromptTotalControls() {
+function mountPromptTotalControls() {
         if (document.getElementById('stdh4c-token-controls')) return;
 
         const box = document.getElementById('stdh4c-token-lens');
@@ -3633,7 +2765,1085 @@
     }
 
 
+
+    // STDH4C_COMMUNITY_BRIEF_V049
+    function safeTarget(rawUrl) {
+        try {
+            const url = new URL(String(rawUrl || ''), location.origin);
+
+            if (url.origin === location.origin) {
+                return 'local';
+            }
+
+            return url.host || 'external';
+        } catch {
+            return '(unknown)';
+        }
+    }
+
+    function latestHttpForCommunity() {
+        const gen = generationHttpErrors();
+        const bg = backgroundHttpErrors();
+        const unk = unknownHttpErrors();
+
+        if (gen.length) return gen[gen.length - 1];
+        if (bg.length) return bg[bg.length - 1];
+        if (unk.length) return unk[unk.length - 1];
+
+        return null;
+    }
+
+    function requestKindForCommunity(item) {
+        if (!item) return 'none';
+
+        const category = item.category || classifyHttp(item);
+
+        if (category === 'generation') return '生成请求';
+        if (category === 'background') return '后台/扩展请求';
+        if (category === 'test') return '测试请求';
+
+        return '未分类请求';
+    }
+
+    function statusForCommunity(item) {
+        if (!item) return 'none';
+        return 'HTTP_' + item.status;
+    }
+
+    function secondsText(ms) {
+        if (ms === null || ms === undefined) return '(not captured)';
+        const n = Number(ms);
+        if (!Number.isFinite(n)) return '(not captured)';
+        return Math.round(n / 1000) + ' 秒';
+    }
+
+    function communityConclusion(health, last, item) {
+        if (item && item.category === 'generation') {
+            return '生成请求失败';
+        }
+
+        if (last && last.stopped) {
+            return '用户手动停止';
+        }
+
+        if (last && last.messageReceived && !last.stopped) {
+            if (item && item.category === 'background') {
+                return '生成正常，后台更新失败';
+            }
+
+            return '生成正常';
+        }
+
+        if (health.status === 'Incomplete') {
+            return '尚未捕获完整生成';
+        }
+
+        return health.status || '需要继续观察';
+    }
+
+    function tokenPressureBrief() {
+        try {
+            const lens = buildTokenLensSnapshot();
+
+            const total =
+                lens.total ||
+                lens.promptTokens ||
+                lens.itemizedTotalTokens ||
+                0;
+
+            const mainName =
+                lens.mainPartName ||
+                lens.mainPart ||
+                'Unknown';
+
+            const mainTokens =
+                lens.mainPartTokens ||
+                0;
+
+            const parts = [];
+
+            if (total) parts.push('总量 ' + total);
+            parts.push('主要压力 ' + mainName + (mainTokens ? ' (' + mainTokens + ')' : ''));
+
+            if (lens.chatTokens) parts.push('聊天历史 ' + lens.chatTokens);
+            if (lens.worldInfoTokens) parts.push('世界书 ' + lens.worldInfoTokens);
+            if (lens.systemTokens) parts.push('预设/系统 ' + lens.systemTokens);
+            if (lens.characterTokens) parts.push('角色 ' + lens.characterTokens);
+
+            if (lens.characterTokens === 0) {
+                parts.push('角色=0 仅表示未被 itemization 单独归类，不代表角色卡无效');
+            }
+
+            return parts.join('；');
+        } catch {
+            return '未读取到提示词结构数据';
+        }
+    }
+
+    function shortPathForCommunity(item) {
+        if (!item) return 'none';
+
+        const raw = String(item.url || '');
+        const path = raw.replace(/^(local|external):/, '');
+
+        if (path.length > 96) {
+            return path.slice(0, 96) + '...';
+        }
+
+        return path || 'unknown';
+    }
+
+
+    // STDH4C_PROVIDER_HOST_HINT_V0410
+    function hostOnlyFromUrl(raw) {
+        try {
+            const text = String(raw || '').trim();
+
+            if (!/^https?:\/\//i.test(text)) return '';
+
+            const url = new URL(text);
+            const host = String(url.hostname || '').trim();
+
+            if (!host) return '';
+
+            if (
+                host === 'localhost' ||
+                host === '127.0.0.1' ||
+                host === '0.0.0.0' ||
+                host === location.hostname
+            ) {
+                return 'local';
+            }
+
+            return host.replace(/^www\./i, '');
+        } catch {
+            return '';
+        }
+    }
+
+    function isProbablySecretKeyName(key) {
+        const k = String(key || '').toLowerCase();
+
+        return (
+            k.includes('key') ||
+            k.includes('token') ||
+            k.includes('secret') ||
+            k.includes('password') ||
+            k.includes('passwd') ||
+            k.includes('auth') ||
+            k.includes('bearer') ||
+            k.includes('cookie') ||
+            k.includes('header') ||
+            k.includes('body') ||
+            k.includes('prompt') ||
+            k.includes('message') ||
+            k.includes('history') ||
+            k.includes('content')
+        );
+    }
+
+    function isProbablyProviderUrlKey(key) {
+        const k = String(key || '').toLowerCase();
+
+        if (
+            k.includes('homepage') ||
+            k.includes('home_page') ||
+            k.includes('github') ||
+            k.includes('repo') ||
+            k.includes('repository') ||
+            k.includes('license') ||
+            k.includes('readme')
+        ) {
+            return false;
+        }
+
+        return (
+            k.includes('reverse') ||
+            k.includes('proxy') ||
+            k.includes('endpoint') ||
+            k.includes('baseurl') ||
+            k.includes('base_url') ||
+            k.includes('apiurl') ||
+            k.includes('api_url') ||
+            k.includes('serverurl') ||
+            k.includes('server_url') ||
+            k === 'url' ||
+            k === 'host'
+        );
+    }
+
+    function pushProviderHostCandidate(out, source, key, value) {
+        if (!isProbablyProviderUrlKey(key)) return;
+        if (isProbablySecretKeyName(key)) return;
+
+        const host = hostOnlyFromUrl(value);
+
+        if (!host || host === 'local') return;
+
+        const badHosts = new Set([
+            'github.com',
+            'raw.githubusercontent.com',
+            'cdn.jsdelivr.net',
+            'localhost',
+            '127.0.0.1'
+        ]);
+
+        if (badHosts.has(host)) return;
+
+        out.push({
+            host,
+            source: source + '.' + key
+        });
+    }
+
+    function scanProviderObject(out, source, obj, depth = 0, seen = new WeakSet()) {
+        if (!obj || typeof obj !== 'object') return;
+        if (seen.has(obj)) return;
+        if (depth > 3) return;
+
+        seen.add(obj);
+
+        let entries = [];
+
+        try {
+            entries = Object.entries(obj);
+        } catch {
+            return;
+        }
+
+        for (const [key, value] of entries) {
+            if (isProbablySecretKeyName(key)) continue;
+
+            if (typeof value === 'string') {
+                pushProviderHostCandidate(out, source, key, value);
+                continue;
+            }
+
+            if (
+                value &&
+                typeof value === 'object' &&
+                (
+                    isProbablyProviderUrlKey(key) ||
+                    key === 'chat_completion' ||
+                    key === 'openai' ||
+                    key === 'custom' ||
+                    key === 'settings'
+                )
+            ) {
+                scanProviderObject(out, source + '.' + key, value, depth + 1, seen);
+            }
+        }
+    }
+
+    function providerHostHintForCommunity() {
+        const manual = manualProviderHostForCommunity();
+        if (manual) {
+            return manual + '（用户填写，仅域名/名称，插件未验证）';
+        }
+
+        const out = [];
+
+        try {
+            if (window.oai_settings) {
+                scanProviderObject(out, 'oai_settings', window.oai_settings);
+            }
+
+            if (window.textgenerationwebui_settings) {
+                scanProviderObject(out, 'textgenerationwebui_settings', window.textgenerationwebui_settings);
+            }
+
+            if (window.SillyTavern && typeof window.SillyTavern.getContext === 'function') {
+                const ctx = window.SillyTavern.getContext();
+
+                if (ctx && ctx.oai_settings) {
+                    scanProviderObject(out, 'context.oai_settings', ctx.oai_settings);
+                }
+
+                if (ctx && ctx.extensionSettings) {
+                    scanProviderObject(out, 'context.extensionSettings', ctx.extensionSettings);
+                }
+            }
+        } catch {
+            // ignore: host hint must never break diagnostics
+        }
+
+        const unique = [];
+        const seen = new Set();
+
+        for (const item of out) {
+            if (!item || !item.host) continue;
+            if (seen.has(item.host)) continue;
+
+            seen.add(item.host);
+            unique.push(item);
+        }
+
+        if (!unique.length) {
+            return 'not detected（浏览器侧只看到 local 请求，未读取到上游域名）';
+        }
+
+        const first = unique[0];
+
+        if (unique.length === 1) {
+            return `${first.host}（仅显示域名，不含 path/query/key）`;
+        }
+
+        return `${first.host} 等 ${unique.length} 个候选（仅显示域名，不含 path/query/key）`;
+    }
+
+
+
+    // STDH4C_MANUAL_PROVIDER_HINT_V0411
+    const MANUAL_PROVIDER_KEY_V0411 = 'stdh4c.manualProviderHost';
+
+    function sanitizeManualProviderHost(raw) {
+        let text = String(raw || '').trim();
+
+        if (!text) return '';
+
+        text = text.replace(/[\r\n\t]/g, ' ').trim();
+
+        if (text.length > 200) {
+            text = text.slice(0, 200);
+        }
+
+        // 如果用户输入完整 URL，只保留 hostname
+        try {
+            if (/^https?:\/\//i.test(text)) {
+                const url = new URL(text);
+                text = url.hostname || '';
+            }
+        } catch {
+            // ignore
+        }
+
+        // 如果用户输入 host/path?key=xxx，只保留 host
+        text = text.split('?')[0].split('#')[0].split('/')[0].trim();
+
+        // 去掉常见端口；如果你希望保留端口，可以删掉这一行
+        text = text.replace(/:\d+$/, '');
+
+        // 去掉 www.
+        text = text.replace(/^www\./i, '');
+
+        // 极简安全过滤：不允许空格、引号、尖括号、反斜杠
+        text = text.replace(/[<>"'`\\\s]/g, '');
+
+        if (text.length > 80) {
+            text = text.slice(0, 80);
+        }
+
+        // 明显是密钥形态就拒绝
+        const lower = text.toLowerCase();
+        if (
+            lower.includes('sk-') ||
+            lower.includes('bearer') ||
+            lower.includes('token') ||
+            lower.includes('apikey') ||
+            lower.includes('api_key') ||
+            lower.includes('secret')
+        ) {
+            return '';
+        }
+
+        return text;
+    }
+
+    function manualProviderHostForCommunity() {
+        try {
+            const saved = localStorage.getItem(MANUAL_PROVIDER_KEY_V0411);
+            const clean = sanitizeManualProviderHost(saved);
+            return clean || '';
+        } catch {
+            return '';
+        }
+    }
+
+    function setManualProviderHostV0411() {
+        const current = manualProviderHostForCommunity();
+
+        const input = prompt(
+            '填写上游域名线索：\n只建议填写服务商主域名或名称。\n不要填写 API key、token、完整带参数链接。\n例如：api.example.com',
+            current || ''
+        );
+
+        if (input === null) return;
+
+        const clean = sanitizeManualProviderHost(input);
+
+        if (!clean) {
+            alert('没有保存：输入为空，或疑似包含密钥/非法字符。');
+            return;
+        }
+
+        localStorage.setItem(MANUAL_PROVIDER_KEY_V0411, clean);
+        addEvent('MANUAL_PROVIDER_HOST_SET', clean);
+
+        alert('已保存上游域名线索：' + clean);
+
+        try {
+            render();
+        } catch {
+            // ignore
+        }
+
+        if (typeof stdh4cMountAddonPanelsV0418 === 'function') {
+            stdh4cMountAddonPanelsV0418();
+        } else {
+            if (typeof stdh4cMountAddonPanelsV0418 === 'function') {
+            stdh4cMountAddonPanelsV0418();
+        } else {
+            setTimeout(mountManualProviderHostPanelV0411, 50);
+        }
+        }
+    }
+
+    function clearManualProviderHostV0411() {
+        localStorage.removeItem(MANUAL_PROVIDER_KEY_V0411);
+        addEvent('MANUAL_PROVIDER_HOST_CLEARED');
+
+        alert('已清除上游域名线索。');
+
+        try {
+            render();
+        } catch {
+            // ignore
+        }
+
+        if (typeof stdh4cMountAddonPanelsV0418 === 'function') {
+            stdh4cMountAddonPanelsV0418();
+        } else {
+            if (typeof stdh4cMountAddonPanelsV0418 === 'function') {
+            stdh4cMountAddonPanelsV0418();
+        } else {
+            setTimeout(mountManualProviderHostPanelV0411, 50);
+        }
+        }
+    }
+
+    function mountManualProviderHostPanelV0411() {
+        const panel =
+            document.getElementById('stdh4c-panel') ||
+            document.querySelector('[id$="-panel"]');
+
+        if (!panel) return;
+
+        let box = document.getElementById('stdh4c-manual-provider-box');
+
+        const current = manualProviderHostForCommunity() || 'not set';
+
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'stdh4c-manual-provider-box';
+            box.style.border = '1px solid rgba(80,180,255,0.55)';
+            box.style.borderRadius = '10px';
+            box.style.padding = '10px';
+            box.style.margin = '10px 0';
+            box.style.background = 'rgba(0,30,55,0.35)';
+            box.style.fontSize = '14px';
+            box.style.lineHeight = '1.6';
+
+            box.innerHTML = `
+                <div style="font-weight:700;color:#55c7ff;margin-bottom:6px;">
+                    上游域名线索 / Provider Host Hint
+                </div>
+                <div id="stdh4c-manual-provider-current" style="word-break:break-all;margin-bottom:8px;"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button id="stdh4c-set-manual-provider" type="button">填写/修改</button>
+                    <button id="stdh4c-clear-manual-provider" type="button">清除</button>
+                </div>
+                <div style="opacity:.75;margin-top:6px;font-size:12px;">
+                    仅保存域名/名称，不保存 path、query、headers、body 或 API key。社区规则仍需人工判断。
+                </div>
+            `;
+
+            const firstHr = panel.querySelector('hr');
+            if (firstHr && firstHr.parentNode) {
+                firstHr.parentNode.insertBefore(box, firstHr.nextSibling);
+            } else {
+                panel.appendChild(box);
+            }
+
+            const setBtn = box.querySelector('#stdh4c-set-manual-provider');
+            const clearBtn = box.querySelector('#stdh4c-clear-manual-provider');
+
+            if (setBtn) {
+                setBtn.onclick = ev => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    setManualProviderHostV0411();
+                };
+            }
+
+            if (clearBtn) {
+                clearBtn.onclick = ev => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    clearManualProviderHostV0411();
+                };
+            }
+        }
+
+        const currentEl = document.getElementById('stdh4c-manual-provider-current');
+        if (currentEl) {
+            currentEl.textContent = '当前：' + current;
+        }
+    }
+
+
+
+    // STDH4C_STREAM_SHORT_V0412
+    function streamLastGenerationV0412() {
+        try {
+            if (typeof preferredGenerationForReport === 'function') {
+                const g = preferredGenerationForReport();
+                if (g) return g;
+            }
+        } catch {}
+        return state.lastGeneration || null;
+    }
+
+    function streamLastAssistantTokensV0412() {
+        try {
+            const lens = buildTokenLensSnapshot();
+            const list = [
+                lens.lastAssistantTokens,
+                lens.lastAssistantMessageTokens,
+                lens.assistantTokens
+            ];
+            for (const v of list) {
+                const n = Number(v);
+                if (Number.isFinite(n) && n > 0) return n;
+            }
+        } catch {}
+        return 0;
+    }
+
+    function streamModeSnapshotV0412() {
+        const last = streamLastGenerationV0412();
+
+        if (!last) {
+            return {
+                type: 'unknown',
+                observed: 'no',
+                chunks: 0,
+                tpc: 0,
+                reason: '尚未捕获完整生成。'
+            };
+        }
+
+        const chunks = Number(last.streamTokens || 0);
+        const assistantTokens = streamLastAssistantTokensV0412();
+        const tpc = chunks > 0 && assistantTokens > 0
+            ? Math.round(assistantTokens / chunks)
+            : 0;
+
+        if (chunks === 0 && last.messageReceived) {
+            return {
+                type: 'non-stream-or-buffered',
+                observed: 'no',
+                chunks,
+                tpc,
+                reason: '收到回复但未观察到 chunk，可能是非流式或完整缓冲返回。'
+            };
+        }
+
+        if (chunks === 0) {
+            return {
+                type: 'no-output-observed',
+                observed: 'no',
+                chunks,
+                tpc,
+                reason: '未观察到输出 chunk。'
+            };
+        }
+
+        if (tpc >= 80) {
+            return {
+                type: 'coarse-buffered-stream',
+                observed: 'yes',
+                chunks,
+                tpc,
+                reason: '观察到 chunk，但每个 chunk 承载 token 较多，更像粗粒度缓冲/假流式。'
+            };
+        }
+
+        if (tpc >= 20) {
+            return {
+                type: 'buffered-stream',
+                observed: 'yes',
+                chunks,
+                tpc,
+                reason: '观察到 chunk，但粒度偏粗，可能是 buffered streaming。'
+            };
+        }
+
+        return {
+            type: 'stream-observed',
+            observed: 'yes',
+            chunks,
+            tpc,
+            reason: '观察到多次 chunk，前端表现接近流式输出。'
+        };
+    }
+
+    function streamModeCommunityLinesV0412() {
+        const x = streamModeSnapshotV0412();
+        return [
+            '- 前端是否观察到流式 chunk：' + x.observed,
+            '- 流式观察类型：' + x.type,
+            '- 捕获 chunk：' + x.chunks,
+            '- 估算 token / chunk：' + (x.tpc ? ('约 ' + x.tpc) : 'not available'),
+            '- 说明：' + x.reason,
+            '- 边界：插件不读取 request body，因此不能证明 stream:true；这里只展示前端实际观察到的输出形态。'
+        ];
+    }
+
+
+
+    // STDH4C_ACTION_SUGGESTION_V0413
+    function communityLastGenerationV0413() {
+        try {
+            if (typeof preferredGenerationForReport === 'function') {
+                const g = preferredGenerationForReport();
+                if (g) return g;
+            }
+        } catch {}
+        return state.lastGeneration || null;
+    }
+
+    function communityLatestHttpV0413() {
+        try {
+            if (typeof latestHttpForCommunity === 'function') {
+                return latestHttpForCommunity();
+            }
+        } catch {}
+        return null;
+    }
+
+    function communityActionSuggestionV0413() {
+        const last = communityLastGenerationV0413();
+        const item = communityLatestHttpV0413();
+
+        if (item && item.category === 'generation') {
+            const st = String(item.status || '').toUpperCase();
+
+            if (st === 'HTTP_401' || st === '401') {
+                return '生成请求被拒绝：优先检查 API key、账号状态或服务商授权。';
+            }
+
+            if (st === 'HTTP_403' || st === '403') {
+                return '生成请求被拒绝：检查模型权限、账号/地区/IP 策略、服务商规则；不要盲目高频重试。';
+            }
+
+            if (st === 'HTTP_429' || st === '429') {
+                return '请求过多或额度受限：降低并发和重试频率，等待额度恢复；公益站场景先看额度和规则。';
+            }
+
+            if (st === 'HTTP_500' || st === '500') {
+                return '上游或反代返回 500：优先检查服务商状态、反代后端日志和当前模型是否可用。';
+            }
+
+            if (st === 'HTTP_502' || st === '502') {
+                return '网关/反代异常：检查中转站、上游连接、代理链路或服务商临时故障。';
+            }
+
+            if (st === 'HTTP_503' || st === '503') {
+                return '服务暂不可用：可能是上游维护、排队或过载；建议稍后重试。';
+            }
+
+            if (st === 'HTTP_524' || st === '524') {
+                return 'Cloudflare 524 超时：通常是上游响应太慢、上下文过长或反代超时；建议减少上下文/世界书并检查上游耗时。';
+            }
+
+            if (st.includes('NETWORK_ERROR')) {
+                return '浏览器未拿到有效 HTTP 响应：优先检查本地 ST 后端、节点/代理、TLS、CORS 或链路中断。';
+            }
+
+            return '生成请求失败：根据状态码、服务商规则和上游日志继续排查。';
+        }
+
+        if (last && last.stopped) {
+            return '最近一次是用户手动停止：回复不完整通常不应归因于模型、API 或服务商故障。';
+        }
+
+        if (last && last.messageReceived && !last.stopped) {
+            if (item && item.category === 'background') {
+                return '生成本身正常；后台扩展/version 检查失败通常可忽略，需要更新插件时再检查 GitHub 网络。';
+            }
+
+            try {
+                if (typeof streamModeSnapshotV0412 === 'function') {
+                    const sm = streamModeSnapshotV0412();
+                    if (sm && String(sm.type || '').includes('buffered')) {
+                        return '生成正常；流式表现为粗粒度缓冲/假流式，这通常是上游或适配器输出形态，不一定是故障。';
+                    }
+                }
+            } catch {}
+
+            return '生成链路正常：若用户仍觉得慢，优先看首 chunk 延迟、上下文长度、世界书占用和节点质量。';
+        }
+
+        if (!last) {
+            return '还没有完整生成记录：请先发送一条短消息测试，再复制社区简报。';
+        }
+
+        return '信息不足：建议复制完整本地报告或补充报错截图。';
+    }
+
+
+    function buildCommunityReport() {
+        sanitizeGenerationState('community-report');
+
+        const snap = getSnapshot();
+        const health = linkHealth();
+        const last = typeof preferredGenerationForReport === 'function'
+            ? preferredGenerationForReport()
+            : state.lastGeneration;
+        const item = latestHttpForCommunity();
+
+        const lines = [];
+
+        lines.push('# ST Diagnostic Helper 社区简报');
+        lines.push('');
+        lines.push('## 一句话结论');
+        lines.push('- 结论：' + communityConclusion(health, last, item));
+        lines.push('- 状态：' + health.status);
+        lines.push('- 说明：' + health.reason);
+
+        lines.push('');
+        lines.push('## 建议动作');
+        lines.push('- ' + communityActionSuggestionV0413());
+
+        lines.push('');
+        lines.push('## 请求目标');
+        lines.push('- 请求目标：' + (item?.target || 'local / not captured'));
+        lines.push('- 上游域名线索：' + providerHostHintForCommunity());
+        lines.push('- 路径分类：' + requestKindForCommunity(item));
+        lines.push('- 安全路径：' + shortPathForCommunity(item));
+        lines.push('- 状态码：' + statusForCommunity(item));
+        lines.push('- 耗时：' + (item ? item.durationMs + 'ms' : 'none'));
+        lines.push('- 服务商判断：插件只展示请求目标与路径类型，请答疑者按社区规则自行判断是否认可。');
+
+        lines.push('');
+        lines.push('## 请求/流式模式');
+        for (const line of streamModeCommunityLinesV0412()) {
+            lines.push(line);
+        }
+
+        lines.push('');
+        lines.push('## 生成状态');
+        if (last) {
+            lines.push('- 生成耗时：' + secondsText(last.durationMs));
+            lines.push('- 首 chunk 延迟：' + secondsText(last.firstTokenLatencyMs));
+            lines.push('- 捕获 chunk：' + (last.streamTokens || 0));
+            lines.push('- 是否收到回复：' + (last.messageReceived ? 'yes' : 'no'));
+            lines.push('- 是否用户停止：' + (last.stopped ? 'yes' : 'no'));
+            lines.push('- 触发类型：' + (last.triggerType || 'unknown'));
+        } else {
+            lines.push('- 尚未捕获完整生成。');
+        }
+
+        lines.push('');
+        lines.push('## 提示词压力');
+        lines.push('- ' + tokenPressureBrief());
+
+        lines.push('');
+        lines.push('## 基础环境');
+        lines.push('- API：' + snap.api);
+        lines.push('- Source：' + snap.source);
+        lines.push('- Model：' + snap.model);
+        lines.push('- Messages：' + snap.messages);
+
+        lines.push('');
+        lines.push('## 隐私');
+        lines.push('- 未记录聊天正文、prompt 正文、API key、headers、request body、response body、query string。');
+        lines.push('- 社区简报隐藏 preset、角色名和 chat ID。');
+
+        lines.push('');
+        lines.push('## 备注');
+        lines.push('- 完整 timeline 已从社区简报移除；需要深度排错时请复制“完整报告”。');
+        lines.push('- Prompt Breakdown 是 SillyTavern 内部结构拆分，不保证等于提示词查看器顶部总 token。');
+
+        return lines.join('\n');
+    }
+
+
+
+    // STDH4C_ADVANCED_HTTP_FOLD_V0414
+    function stdh4cIsSimButtonV0414(btn) {
+        const text = String(btn?.textContent || '').trim();
+
+        if (!text) return false;
+
+        const isSim =
+            /测试|模拟|simulate|403|404|429|500|502|503|524|network/i.test(text);
+
+        const keepOutside =
+            /清空|复制|刷新|关闭|填写|修改|开启高级|关闭高级|copy|refresh|clear/i.test(text);
+
+        return isSim && !keepOutside;
+    }
+
+    function stdh4cAdvancedHttpFoldV0414() {
+        const panel =
+            document.getElementById('stdh4c-panel') ||
+            document.querySelector('[id$="-panel"]');
+
+        if (!panel) return;
+
+        let box = document.getElementById('stdh4c-advanced-http-fold');
+
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'stdh4c-advanced-http-fold';
+            box.style.border = '1px solid rgba(255,190,80,0.55)';
+            box.style.borderRadius = '10px';
+            box.style.padding = '10px';
+            box.style.margin = '10px 0';
+            box.style.background = 'rgba(60,40,0,0.28)';
+            box.style.fontSize = '14px';
+            box.style.lineHeight = '1.6';
+
+            box.innerHTML = `
+                <details id="stdh4c-advanced-http-details">
+                    <summary style="font-weight:700;color:#ffc45a;cursor:pointer;">
+                        高级 HTTP 测试 / Advanced HTTP Tests
+                    </summary>
+                    <div style="opacity:.75;margin:8px 0;font-size:12px;">
+                        这里仅放 403 / 429 / 500 / 524 等模拟测试按钮。正常社区排错无需展开。
+                    </div>
+                    <div id="stdh4c-advanced-http-buttons"
+                         style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                    </div>
+                    <div style="opacity:.75;margin-top:8px;font-size:12px;">
+                        模拟按钮只用于开发验证，不代表真实请求失败。
+                    </div>
+                </details>
+            `;
+
+            const providerBox = document.getElementById('stdh4c-manual-provider-box');
+            const streamBox = document.getElementById('stdh4c-stream-mode-box');
+
+            if (streamBox && streamBox.parentNode) {
+                streamBox.parentNode.insertBefore(box, streamBox.nextSibling);
+            } else if (providerBox && providerBox.parentNode) {
+                providerBox.parentNode.insertBefore(box, providerBox.nextSibling);
+            } else {
+                const hr = panel.querySelector('hr');
+                if (hr && hr.parentNode) {
+                    hr.parentNode.insertBefore(box, hr.nextSibling);
+                } else {
+                    panel.appendChild(box);
+                }
+            }
+        }
+
+        const target = document.getElementById('stdh4c-advanced-http-buttons');
+        if (!target) return;
+
+        const buttons = Array.from(panel.querySelectorAll('button'));
+
+        for (const btn of buttons) {
+            if (!stdh4cIsSimButtonV0414(btn)) continue;
+            if (target.contains(btn)) continue;
+
+            target.appendChild(btn);
+        }
+
+        if (!target.children.length) {
+            target.textContent = '暂无模拟测试按钮。需要测试时，可先开启旧版 HTTP 模拟面板或完整报告测试项。';
+        } else {
+            for (const node of Array.from(target.childNodes)) {
+                if (node.nodeType === Node.TEXT_NODE) node.remove();
+            }
+        }
+    }
+
+
+
+    // STDH4C_SIM_BUTTONS_V0415
+    function stdh4cShortTimeV0415() {
+        const d = new Date();
+        return [
+            String(d.getHours()).padStart(2, '0'),
+            String(d.getMinutes()).padStart(2, '0'),
+            String(d.getSeconds()).padStart(2, '0')
+        ].join(':');
+    }
+
+    function stdh4cExplainSimV0415(status) {
+        const s = String(status).toUpperCase();
+
+        if (s === '403') {
+            return '403 Forbidden｜服务器理解请求，但拒绝处理。常见原因：模型权限、账号/地区/IP 策略、服务商规则或请求来源不合规。';
+        }
+
+        if (s === '429') {
+            return '429 Too Many Requests｜请求过多或额度受限。常见原因：RPM/TPM 超限、并发过高、公益站额度限制。';
+        }
+
+        if (s === '500') {
+            return '500 Server Error｜上游、反代或服务端内部异常。建议检查服务商状态、反代日志和模型可用性。';
+        }
+
+        if (s === '502') {
+            return '502 Bad Gateway｜网关或反代无法从上游获得有效响应。常见于中转站、上游连接或代理链路异常。';
+        }
+
+        if (s === '503') {
+            return '503 Service Unavailable｜服务暂不可用。可能是上游维护、排队、过载或临时不可用。';
+        }
+
+        if (s === '524') {
+            return '524 Cloudflare Timeout｜Cloudflare 已连接源站，但源站超时未返回。常见于上游太慢、上下文过长或反代超时。';
+        }
+
+        if (s.includes('NETWORK')) {
+            return 'NETWORK_ERROR｜浏览器 fetch 没拿到有效 HTTP 响应。常见原因：网络断开、连接重置、本地后端不可达、TLS/CORS/代理链路问题。';
+        }
+
+        return '模拟 HTTP 错误，仅用于开发验证。';
+    }
+
+    function stdh4cPushSimHttpV0415(status) {
+        const isNetwork = String(status).toUpperCase().includes('NETWORK');
+        const code = isNetwork ? 'NETWORK_ERROR' : Number(status);
+        const duration = String(status) === '524' ? 100000 : 4321;
+
+        const item = {
+            id: 'sim-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+            time: new Date().toISOString(),
+            shortTime: stdh4cShortTimeV0415(),
+            category: 'generation',
+            method: 'POST',
+            url: 'local:/api/backends/stdh4c-simulated/generate',
+            target: 'local',
+            status: code,
+            durationMs: duration,
+            explanation: stdh4cExplainSimV0415(status)
+        };
+
+        let pushed = false;
+
+        try {
+            if (typeof recordHttpError === 'function') {
+                recordHttpError({
+                    method: item.method,
+                    url: item.url,
+                    status: item.status,
+                    durationMs: item.durationMs,
+                    category: item.category,
+                    explanation: item.explanation
+                });
+                pushed = true;
+            }
+        } catch {
+            pushed = false;
+        }
+
+        if (!pushed) {
+            try {
+                if (!Array.isArray(state.httpErrors)) state.httpErrors = [];
+                state.httpErrors.push(item);
+                if (state.httpErrors.length > 60) state.httpErrors.shift();
+                pushed = true;
+            } catch {
+                pushed = false;
+            }
+        }
+
+        try {
+            addEvent('HTTP_SIMULATED_' + String(status).toUpperCase());
+        } catch {}
+
+        try {
+            render();
+        } catch {}
+
+        alert(
+            pushed
+                ? '已模拟 HTTP ' + status + '。请复制社区简报或完整报告查看分类。'
+                : '模拟失败：未找到可写入的 HTTP 日志结构。'
+        );
+    }
+
+    function stdh4cEnsureSimButtonsV0415() {
+        try {
+            if (typeof stdh4cAdvancedHttpFoldV0414 === 'function') {
+                stdh4cAdvancedHttpFoldV0414();
+            }
+        } catch {}
+
+        const target = document.getElementById('stdh4c-advanced-http-buttons');
+        if (!target) return;
+
+        const specs = [
+            ['403', '测试 403'],
+            ['429', '测试 429'],
+            ['500', '测试 500'],
+            ['502', '测试 502'],
+            ['503', '测试 503'],
+            ['524', '测试 524'],
+            ['NETWORK_ERROR', '测试 NETWORK']
+        ];
+
+        for (const [status, label] of specs) {
+            const id = 'stdh4c-sim-' + String(status).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+
+            if (document.getElementById(id)) continue;
+
+            const btn = document.createElement('button');
+            btn.id = id;
+            btn.type = 'button';
+            btn.textContent = label;
+            btn.onclick = ev => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                stdh4cPushSimHttpV0415(status);
+            };
+
+            target.appendChild(btn);
+        }
+
+        for (const node of Array.from(target.childNodes)) {
+            if (node.nodeType === Node.TEXT_NODE) node.remove();
+        }
+    }
+
+
+
+    // STDH4C_MERGE_UI_TIMERS_V0418
+    function stdh4cMountAddonPanelsV0418() {
+        try {
+            if (typeof mountManualProviderHostPanelV0411 === 'function') {
+                mountManualProviderHostPanelV0411();
+            }
+        } catch {}
+
+        try {
+            if (typeof stdh4cAdvancedHttpFoldV0414 === 'function') {
+                stdh4cAdvancedHttpFoldV0414();
+            }
+        } catch {}
+
+        try {
+            if (typeof stdh4cEnsureSimButtonsV0415 === 'function') {
+                stdh4cEnsureSimButtonsV0415();
+            }
+        } catch {}
+    }
+
+
     function boot() {
+        setTimeout(stdh4cMountAddonPanelsV0418, 1500);
+        setInterval(stdh4cMountAddonPanelsV0418, 3500);
+
+
+
+
+
+
         mountUI();
         addEvent('PLUGIN_IMPORTED');
 
@@ -3657,7 +3867,7 @@
         setInterval(() => {
             sanitizeGenerationState('watchdog');
             mountUI();
-            mountHttpSimPanel();
+            if (localStorage.getItem('stdh4c.devMode') === '1') mountHttpSimPanel();
             mountTokenLensPanel();
             render();
             renderTokenLensUI();
