@@ -5,7 +5,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "duccuongvu560",
-  "version": "0.4.19b-refresh-fix",
+  "version": "0.4.24-mini-priority",
   "homePage": "https://github.com/aishuishuishui277/st-diagnostic-helper-v04-clean",
   "auto_update": false,
   "minimum_client_version": "1.18.0"

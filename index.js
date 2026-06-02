@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.4.19b-refresh-fix';
+    const VERSION = '0.4.24-mini-priority';
     const POS_KEY = 'stdh4c.position.v1';
     const LOG_PREFIX = '[STDH4C]';
 
@@ -1043,6 +1043,7 @@ function addHttpReport(lines) {
     }
 
     function buildReport(communityMode) {
+        fixStopFalsePositiveV0420('buildReport');
         sanitizeGenerationState('report');
         const snap = getSnapshot();
         const health = linkHealth();
@@ -1301,6 +1302,7 @@ function addHttpReport(lines) {
     }
 
     function render() {
+        fixStopFalsePositiveV0420('render');
         sanitizeGenerationState('render');
         const healthEl = document.getElementById('stdh4c-health');
         if (!healthEl) return;
@@ -2139,7 +2141,70 @@ function addHttpReport(lines) {
         lines.push('- Error Aborted: ' + (latest.errorAborted ? 'yes' : 'no'));
     }
 
+
+    // STDH4C_STOP_FALSE_POSITIVE_FIX_V0420
+    function generationHasManualStopHintV0420(gen) {
+        if (!gen || !gen.id) return false;
+
+        try {
+            return (state.events || []).some(event =>
+                event &&
+                event.generationId === gen.id &&
+                event.name === 'MANUAL_STOP_HINT'
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    function generationLooksCompletedV0420(gen) {
+        if (!gen) return false;
+
+        return Boolean(
+            gen.messageReceived &&
+            Number(gen.streamTokens || 0) > 0 &&
+            gen.endedAt
+        );
+    }
+
+    function fixStopFalsePositiveOneV0420(gen, reason) {
+        if (!gen || !gen.stopped) return false;
+
+        const hasManualHint = generationHasManualStopHintV0420(gen);
+
+        if (hasManualHint) {
+            return false;
+        }
+
+        if (!generationLooksCompletedV0420(gen)) {
+            return false;
+        }
+
+        gen.stopped = false;
+        gen.stopReason = 'normal_completed_reclassified';
+        gen.stopFalsePositiveFixed = true;
+
+        try {
+            addEvent('STOP_FALSE_POSITIVE_FIXED', reason || 'unknown');
+        } catch {
+            // ignore
+        }
+
+        return true;
+    }
+
+    function fixStopFalsePositiveV0420(reason) {
+        try {
+            fixStopFalsePositiveOneV0420(state.lastGeneration, reason);
+            fixStopFalsePositiveOneV0420(state.lastSuccessfulGeneration, reason);
+        } catch {
+            // ignore
+        }
+    }
+
+
     function generationSummary() {
+        fixStopFalsePositiveV0420('generationSummary');
         normalizeStopState('generation-summary-v046');
 
         const cur = state.currentGeneration;
@@ -2445,6 +2510,7 @@ function mountPromptTotalControls() {
     }
 
     function linkHealth() {
+        fixStopFalsePositiveV0420('linkHealth');
         normalizeStopState('link-health-v048');
 
         const genErrors = generationHttpErrors();
@@ -2517,6 +2583,7 @@ function mountPromptTotalControls() {
     }
 
     function riskText() {
+        fixStopFalsePositiveV0420('riskText');
         const health = linkHealth();
 
         if (latestAttemptIsTransientNetworkNoticeV048()) {
@@ -3493,6 +3560,7 @@ function mountPromptTotalControls() {
 
 
     function buildCommunityReport() {
+        fixStopFalsePositiveV0420('buildCommunityReport');
         sanitizeGenerationState('community-report');
 
         const snap = getSnapshot();
@@ -3815,6 +3883,7 @@ function mountPromptTotalControls() {
 
     // STDH4C_MERGE_UI_TIMERS_V0418
     function stdh4cMountAddonPanelsV0418() {
+        try { mountMiniCommunityReportPanelV0421(); } catch {}
         try {
             if (typeof mountManualProviderHostPanelV0411 === 'function') {
                 mountManualProviderHostPanelV0411();
@@ -3832,6 +3901,651 @@ function mountPromptTotalControls() {
                 stdh4cEnsureSimButtonsV0415();
             }
         } catch {}
+    }
+
+
+
+    // STDH4C_MINI_COMMUNITY_REPORT_V0421
+    function miniValueV0421(value, fallback = 'unknown') {
+        if (value === null || value === undefined) return fallback;
+        const text = String(value).trim();
+        return text || fallback;
+    }
+
+    function miniNumberV0421(...values) {
+        for (const value of values) {
+            const n = Number(value);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+        return 0;
+    }
+
+    function miniCleanProviderV0421() {
+        try {
+            if (typeof manualProviderHostForCommunity === 'function') {
+                const host = manualProviderHostForCommunity();
+                if (host) return host;
+            }
+        } catch {}
+
+        try {
+            if (typeof providerHostHintForCommunity === 'function') {
+                const hint = providerHostHintForCommunity();
+                return String(hint || '')
+                    .split('（')[0]
+                    .replace('not detected', '')
+                    .trim() || 'not detected';
+            }
+        } catch {}
+
+        return 'not detected';
+    }
+
+    function miniStatusV0421() {
+        try {
+            const health = linkHealth();
+
+            if (!health) return 'unknown';
+
+            if (health.status === 'Healthy') return '生成正常';
+            if (health.status === 'User Stopped') return '用户手动停止';
+            if (health.status === 'Healthy with Background Notice') return '生成正常，后台提示';
+            if (health.status === 'Healthy with transient network notice') return '生成正常，短暂网络提示';
+            if (health.status === 'Generation HTTP Error') return '生成请求失败';
+
+            return health.status || 'unknown';
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    function miniHttpV0421() {
+        try {
+            if (typeof latestHttpForCommunity === 'function') {
+                const item = latestHttpForCommunity();
+
+                if (!item) return '无';
+
+                const status = miniValueV0421(item.status, 'none');
+                const path = miniValueV0421(item.safePath || item.url, 'none');
+
+                if (status === 'none' && path === 'none') return '无';
+
+                return status + ' / ' + path;
+            }
+        } catch {}
+
+        return '无';
+    }
+
+    function miniStreamV0421() {
+        try {
+            if (typeof streamModeSnapshotV0412 === 'function') {
+                const sm = streamModeSnapshotV0412();
+
+                if (!sm) return 'unknown';
+
+                const type = miniValueV0421(sm.type || sm.mode, 'unknown');
+                const chunks = miniNumberV0421(sm.chunks);
+
+                if (chunks > 0) return type + '，chunk ' + chunks;
+                return type;
+            }
+        } catch {}
+
+        return 'unknown';
+    }
+
+    function miniPromptV0421() {
+        try {
+            if (typeof buildTokenLensSnapshot !== 'function') {
+                return {
+                    total: 'unknown',
+                    pressure: 'unknown'
+                };
+            }
+
+            const lens = buildTokenLensSnapshot() || {};
+
+            const total = miniNumberV0421(
+                lens.promptTokens,
+                lens.itemizedTotalTokens,
+                lens.itemizedTotal,
+                lens.bestAvailablePromptTokens
+            );
+
+            const chat = miniNumberV0421(lens.chatTokens, lens.chatHistoryTokens);
+            const world = miniNumberV0421(lens.worldInfoTokens, lens.worldTokens);
+            const system = miniNumberV0421(lens.systemTokens, lens.systemPresetTokens);
+            const character = miniNumberV0421(lens.characterTokens, lens.charTokens);
+
+            const parts = [
+                ['Chat History', chat],
+                ['WorldInfo', world],
+                ['System/Preset', system],
+                ['Character', character]
+            ].filter(x => x[1] > 0);
+
+            parts.sort((a, b) => b[1] - a[1]);
+
+            return {
+                total: total || 'unknown',
+                pressure: parts.length ? (parts[0][0] + ' ' + parts[0][1]) : 'unknown'
+            };
+        } catch {
+            return {
+                total: 'unknown',
+                pressure: 'unknown'
+            };
+        }
+    }
+
+    function miniSuggestionV0421() {
+        try {
+            if (typeof communityActionSuggestionV0413 === 'function') {
+                return communityActionSuggestionV0413();
+            }
+        } catch {}
+
+        return '信息不足；需要深度排错时请复制完整报告。';
+    }
+
+
+    // STDH4C_MINI_FIELDS_FIX_V0422
+    function miniPresetV0422(snap) {
+        const value = snap && snap.preset;
+        const text = String(value || '').trim();
+
+        if (!text || text === '(unknown)' || text === 'unknown') {
+            return 'unknown';
+        }
+
+        return text;
+    }
+
+    function miniPickNumberV0422(obj, keys) {
+        if (!obj) return 0;
+
+        for (const key of keys) {
+            const n = Number(obj[key]);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+
+        return 0;
+    }
+
+    function miniPromptV0422() {
+        try {
+            if (typeof buildTokenLensSnapshot !== 'function') {
+                return {
+                    total: 'unknown',
+                    pressure: 'unknown'
+                };
+            }
+
+            const lens = buildTokenLensSnapshot() || {};
+
+            const chat = miniPickNumberV0422(lens, [
+                'chatTokens',
+                'chatHistoryTokens',
+                'chatHistory',
+                'chat'
+            ]);
+
+            const world = miniPickNumberV0422(lens, [
+                'worldInfoTokens',
+                'worldTokens',
+                'worldInfo',
+                'world'
+            ]);
+
+            const system = miniPickNumberV0422(lens, [
+                'systemTokens',
+                'systemPresetTokens',
+                'presetTokens',
+                'systemPreset',
+                'system'
+            ]);
+
+            const character = miniPickNumberV0422(lens, [
+                'characterTokens',
+                'charTokens',
+                'character'
+            ]);
+
+            const examples = miniPickNumberV0422(lens, [
+                'exampleTokens',
+                'examplesTokens',
+                'exampleMessagesTokens',
+                'examples'
+            ]);
+
+            let total = miniPickNumberV0422(lens, [
+                'promptTokens',
+                'bestAvailablePromptTokens',
+                'itemizedTotalTokens',
+                'itemizedTotal',
+                'internalItemizedTotalTokens',
+                'internalTotalTokens',
+                'totalTokens',
+                'total'
+            ]);
+
+            if (!total) {
+                total = chat + world + system + character + examples;
+            }
+
+            const parts = [
+                ['Chat History', chat],
+                ['WorldInfo', world],
+                ['System/Preset', system],
+                ['Character', character],
+                ['Examples', examples]
+            ].filter(x => x[1] > 0);
+
+            parts.sort((a, b) => b[1] - a[1]);
+
+            return {
+                total: total || 'unknown',
+                pressure: parts.length ? (parts[0][0] + ' ' + parts[0][1]) : 'unknown'
+            };
+        } catch {
+            return {
+                total: 'unknown',
+                pressure: 'unknown'
+            };
+        }
+    }
+
+
+
+    // STDH4C_MINI_READABLE_V0423
+    function miniStatusV0423() {
+        try {
+            const health = linkHealth();
+            const status = String(health && health.status || '');
+
+            if (status === 'Healthy') {
+                return '✅ 生成正常';
+            }
+
+            if (status === 'User Stopped') {
+                return '⏹ 用户手动停止';
+            }
+
+            if (status === 'Healthy with Background Notice') {
+                return '✅ 生成正常，后台提示';
+            }
+
+            if (status === 'Healthy with transient network notice') {
+                return '✅ 生成正常，短暂网络提示';
+            }
+
+            if (status === 'Generation HTTP Error') {
+                return '❌ 生成请求失败';
+            }
+
+            if (status === 'Incomplete') {
+                return '⚠ 尚未捕获完整生成';
+            }
+
+            return status || 'unknown';
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    function miniStreamV0423() {
+        try {
+            if (typeof streamModeSnapshotV0412 !== 'function') {
+                return 'unknown';
+            }
+
+            const sm = streamModeSnapshotV0412();
+            const type = String(sm.type || sm.mode || 'unknown');
+            const chunks = Number(sm.chunks || 0);
+
+            let label = type;
+
+            if (type === 'coarse-buffered-stream') {
+                label = '粗粒度缓冲/假流式特征';
+            } else if (type === 'buffered-stream') {
+                label = '缓冲流式/疑似假流式';
+            } else if (type === 'stream-observed') {
+                label = '流式已观察';
+            } else if (type === 'non-stream-or-buffered') {
+                label = '未观察到流式/可能完整缓冲';
+            } else if (type === 'very-coarse-buffered-stream') {
+                label = '极粗粒度缓冲';
+            } else if (type === 'failed-or-aborted') {
+                label = '失败或中断，未形成有效流式判断';
+            } else if (type === 'no-output-observed') {
+                label = '未观察到输出 chunk';
+            }
+
+            if (chunks > 0) {
+                return label + '，chunk ' + chunks;
+            }
+
+            return label;
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    function miniPromptV0423() {
+        let info;
+
+        try {
+            info = miniPromptV0422();
+        } catch {
+            info = {
+                total: 'unknown',
+                pressure: 'unknown'
+            };
+        }
+
+        const total = Number(info.total);
+        const pressure = String(info.pressure || 'unknown');
+
+        const match = pressure.match(/^(.+?)\s+(\d+)$/);
+
+        if (Number.isFinite(total) && total > 0 && match) {
+            const name = match[1];
+            const value = Number(match[2]);
+
+            if (Number.isFinite(value) && value > 0) {
+                const percent = Math.round(value / total * 100);
+                return {
+                    total: info.total,
+                    pressure: name + ' ' + value + ' (' + percent + '%)'
+                };
+            }
+        }
+
+        return info;
+    }
+
+
+
+    // STDH4C_MINI_PRIORITY_FIX_V0424
+    function miniGenV0424() {
+        try {
+            if (typeof fixStopFalsePositiveV0420 === 'function') {
+                fixStopFalsePositiveV0420('mini-v0424');
+            }
+        } catch {}
+
+        try {
+            if (typeof preferredGenerationForReport === 'function') {
+                const g = preferredGenerationForReport();
+                if (g) return g;
+            }
+        } catch {}
+
+        return state.lastGeneration || state.lastSuccessfulGeneration || null;
+    }
+
+    function miniLatestHttpV0424() {
+        try {
+            if (typeof latestHttpForCommunity === 'function') {
+                return latestHttpForCommunity();
+            }
+        } catch {}
+
+        return null;
+    }
+
+    function miniGenCompletedV0424(gen) {
+        return Boolean(
+            gen &&
+            gen.messageReceived &&
+            Number(gen.streamTokens || 0) > 0
+        );
+    }
+
+    function miniHttpStatusV0424(item) {
+        if (!item) return 'none';
+
+        const raw = item.status;
+        const text = String(raw || 'none');
+
+        if (text.startsWith('HTTP_')) return text;
+        if (text === 'NETWORK_ERROR') return 'NETWORK_ERROR';
+
+        return 'HTTP_' + text;
+    }
+
+    function miniHttpPathV0424(item) {
+        if (!item) return 'none';
+
+        return String(
+            item.safePath ||
+            item.url ||
+            item.path ||
+            'none'
+        ).replace(/^(local|external):/, '');
+    }
+
+    function miniStatusV0424() {
+        const gen = miniGenV0424();
+        const item = miniLatestHttpV0424();
+
+        if (gen && gen.stopped) {
+            return '⏹ 用户手动停止';
+        }
+
+        if (miniGenCompletedV0424(gen)) {
+            if (item && item.category === 'background') {
+                return '✅ 生成正常，后台提示';
+            }
+
+            return '✅ 生成正常';
+        }
+
+        if (item && item.category === 'generation') {
+            return '❌ 生成请求失败';
+        }
+
+        try {
+            const health = linkHealth();
+            const status = String(health && health.status || '');
+
+            if (status === 'Healthy') return '✅ 生成正常';
+            if (status === 'User Stopped') return '⏹ 用户手动停止';
+            if (status === 'Healthy with Background Notice') return '✅ 生成正常，后台提示';
+            if (status === 'Healthy with transient network notice') return '✅ 生成正常，短暂网络提示';
+            if (status === 'Generation HTTP Error') return '❌ 生成请求失败';
+            if (status === 'Incomplete') return '⚠ 尚未捕获完整生成';
+
+            return status || 'unknown';
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    function miniHttpV0424() {
+        const gen = miniGenV0424();
+        const item = miniLatestHttpV0424();
+
+        if (!item) {
+            return '无';
+        }
+
+        if (gen && gen.stopped) {
+            return '无（用户手动停止）';
+        }
+
+        if (miniGenCompletedV0424(gen) && item.category === 'generation') {
+            return '无（最近生成已正常完成）';
+        }
+
+        if (item.category === 'background') {
+            return '后台提示：' + miniHttpStatusV0424(item) + ' / ' + miniHttpPathV0424(item);
+        }
+
+        return miniHttpStatusV0424(item) + ' / ' + miniHttpPathV0424(item);
+    }
+
+    function miniSuggestionV0424() {
+        const gen = miniGenV0424();
+        const item = miniLatestHttpV0424();
+
+        if (gen && gen.stopped) {
+            return '最近一次是用户手动停止：回复不完整通常不应归因于模型、API 或服务商故障。';
+        }
+
+        if (miniGenCompletedV0424(gen)) {
+            if (item && item.category === 'background') {
+                return '生成本身正常；后台扩展/version 检查失败通常可忽略，需要更新插件时再检查 GitHub 网络。';
+            }
+
+            try {
+                if (typeof streamModeSnapshotV0412 === 'function') {
+                    const sm = streamModeSnapshotV0412();
+                    const type = String(sm && (sm.type || sm.mode) || '');
+
+                    if (type.includes('buffered')) {
+                        return '生成正常；流式表现为粗粒度缓冲/假流式，这通常是上游或适配器输出形态，不一定是故障。';
+                    }
+                }
+            } catch {}
+
+            return '生成链路正常；若仍觉得慢，优先看首 chunk 延迟、上下文长度、世界书占用和节点质量。';
+        }
+
+        if (item && item.category === 'generation') {
+            try {
+                if (typeof communityActionSuggestionV0413 === 'function') {
+                    return communityActionSuggestionV0413();
+                }
+            } catch {}
+
+            return '生成请求失败：根据状态码、服务商规则和上游日志继续排查。';
+        }
+
+        return '信息不足；需要深度排错时请复制完整报告。';
+    }
+
+
+    function buildMiniCommunityReportV0421() {
+        let snap = {};
+
+        try {
+            snap = getSnapshot();
+        } catch {
+            snap = {};
+        }
+
+        const prompt = miniPromptV0423();
+
+        return [
+            'ST 社区超简报',
+            '',
+            '模型：' + miniValueV0421(snap.model),
+            '预设：' + miniPresetV0422(snap),
+            '接口：' + miniCleanProviderV0421(),
+            '状态：' + miniStatusV0424(),
+            'HTTP：' + miniHttpV0424(),
+            '流式：' + miniStreamV0423(),
+            'Prompt：' + prompt.total,
+            '压力：' + prompt.pressure,
+            '建议：' + miniSuggestionV0424(),
+            '',
+            '隐私：未包含正文、prompt、API key、headers、body、query。'
+        ].join('\n');
+    }
+
+    function copyTextV0421(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text);
+        }
+
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.focus();
+        area.select();
+
+        try {
+            document.execCommand('copy');
+        } finally {
+            area.remove();
+        }
+
+        return Promise.resolve();
+    }
+
+    function copyMiniCommunityReportV0421() {
+        const text = buildMiniCommunityReportV0421();
+
+        copyTextV0421(text)
+            .then(() => {
+                try {
+                    addEvent('MINI_COMMUNITY_REPORT_COPIED');
+                } catch {}
+                alert('已复制社区超简报。');
+            })
+            .catch(err => {
+                alert('复制失败：' + (err && err.message ? err.message : err));
+            });
+    }
+
+    function mountMiniCommunityReportPanelV0421() {
+        const panel =
+            document.getElementById('stdh4c-panel') ||
+            document.querySelector('[id$="-panel"]');
+
+        if (!panel) return;
+
+        let box = document.getElementById('stdh4c-mini-report-box');
+
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'stdh4c-mini-report-box';
+            box.style.border = '1px solid rgba(80,180,255,0.55)';
+            box.style.borderRadius = '10px';
+            box.style.padding = '10px';
+            box.style.margin = '10px 0';
+            box.style.background = 'rgba(0,30,55,0.35)';
+            box.style.fontSize = '14px';
+            box.style.lineHeight = '1.6';
+
+            box.innerHTML = `
+                <div style="font-weight:700;color:#55c7ff;margin-bottom:6px;">
+                    社区超简报 / Mini Community Report
+                </div>
+                <div style="opacity:.75;margin-bottom:8px;font-size:12px;">
+                    只包含模型、接口、状态、HTTP、流式、Prompt压力和建议动作。
+                </div>
+                <button id="stdh4c-copy-mini-report" type="button">
+                    复制超简报
+                </button>
+            `;
+
+            const providerBox = document.getElementById('stdh4c-manual-provider-box');
+            if (providerBox && providerBox.parentNode) {
+                providerBox.parentNode.insertBefore(box, providerBox);
+            } else {
+                const hr = panel.querySelector('hr');
+                if (hr && hr.parentNode) {
+                    hr.parentNode.insertBefore(box, hr.nextSibling);
+                } else {
+                    panel.appendChild(box);
+                }
+            }
+
+            const btn = box.querySelector('#stdh4c-copy-mini-report');
+            if (btn) {
+                btn.onclick = ev => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    copyMiniCommunityReportV0421();
+                };
+            }
+        }
     }
 
 
